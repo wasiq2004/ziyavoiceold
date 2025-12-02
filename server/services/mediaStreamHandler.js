@@ -1,5 +1,3 @@
-"use strict";
-
 const { createClient, LiveTranscriptionEvents } = require("@deepgram/sdk");
 const { LLMService } = require("../llmService.js");
 const nodeFetch = require("node-fetch");
@@ -16,6 +14,11 @@ class MediaStreamHandler {
         this.campaignService = campaignService;
     }
 
+    // ✅ FIX: Method to get fresh API key each time
+    getElevenLabsApiKey() {
+        return process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY;
+    }
+
     createSession(callId, agentPrompt, agentVoiceId, ws) {
         const session = {
             callId,
@@ -25,8 +28,8 @@ class MediaStreamHandler {
             agentVoiceId: agentVoiceId || "21m00Tcm4TlvDq8ikWAM",
             ws,
             streamSid: null,
-            isReady: false, // ✅ NEW: Track if ready to send audio
-            audioQueue: [], // ✅ NEW: Queue audio until streamSid is available
+            isReady: false,
+            audioQueue: [],
         };
         sessions.set(callId, session);
         console.log(`✅ Created session for call ${callId}`);
@@ -55,7 +58,12 @@ class MediaStreamHandler {
     async handleConnection(ws, req) {
         let callId = null;
         try {
-            const { campaignId, contactId, agentId, callId: queryCallId } = req.query;
+            // ✅ FIX: Parse query params correctly from Twilio
+            const url = new URL(req.url, `http://${req.headers.host}`);
+            const campaignId = url.searchParams.get('campaignId');
+            const contactId = url.searchParams.get('contactId');
+            const agentId = url.searchParams.get('agentId');
+            const queryCallId = url.searchParams.get('callId');
             
             callId = queryCallId || contactId;
 
@@ -68,10 +76,11 @@ class MediaStreamHandler {
             console.log(`📞 New call connection: ${callId}`);
             console.log(`   Agent ID: ${agentId || 'none'}`);
             console.log(`   Campaign ID: ${campaignId || 'none'}`);
+            console.log(`   Contact ID: ${contactId || 'none'}`);
 
             let agentPrompt = "You are a helpful AI assistant. Be concise and natural in your responses.";
             let agentVoiceId = "21m00Tcm4TlvDq8ikWAM";
-            let greetingMessage = "Hello! How can I help you today?"; // ✅ NEW
+            let greetingMessage = "Hello! How can I help you today?";
 
             if (agentId) {
                 try {
@@ -82,11 +91,12 @@ class MediaStreamHandler {
                     if (agent) {
                         agentPrompt = agent.identity || agent.prompt || agentPrompt;
                         agentVoiceId = agent.voiceId || agentVoiceId;
-                        // ✅ NEW: Get greeting from agent settings
                         if (agent.settings && agent.settings.greetingLine) {
                             greetingMessage = agent.settings.greetingLine;
                         }
                         console.log(`✅ Loaded agent: ${agent.name}`);
+                        console.log(`   Voice ID: ${agentVoiceId}`);
+                        console.log(`   Greeting: ${greetingMessage}`);
                     } else {
                         console.warn(`⚠️  Agent ${agentId} not found, using defaults`);
                     }
@@ -96,8 +106,6 @@ class MediaStreamHandler {
             }
 
             const session = this.createSession(callId, agentPrompt, agentVoiceId, ws);
-
-            // ✅ NEW: Store greeting message
             session.greetingMessage = greetingMessage;
 
             // Initialize Deepgram STT stream
@@ -154,9 +162,9 @@ class MediaStreamHandler {
                     } else if (data.event === "start") {
                         console.log("▶️  Media Stream started:", data.start.streamSid);
                         session.streamSid = data.start.streamSid;
-                        session.isReady = true; // ✅ NEW
+                        session.isReady = true;
 
-                        // ✅ NEW: Send queued audio
+                        // Send queued audio
                         if (session.audioQueue.length > 0) {
                             console.log(`📤 Sending ${session.audioQueue.length} queued audio chunks`);
                             for (const audioBuffer of session.audioQueue) {
@@ -165,8 +173,9 @@ class MediaStreamHandler {
                             session.audioQueue = [];
                         }
 
-                        // ✅ NEW: Send greeting after connection is established
+                        // Send greeting after connection is established
                         setTimeout(async () => {
+                            console.log(`👋 Sending greeting: "${session.greetingMessage}"`);
                             const greetingAudio = await this.synthesizeTTS(
                                 session.greetingMessage, 
                                 session.agentVoiceId
@@ -174,7 +183,7 @@ class MediaStreamHandler {
                             if (greetingAudio) {
                                 this.sendAudioToTwilio(session, greetingAudio);
                             }
-                        }, 500); // Small delay to ensure connection is stable
+                        }, 500);
 
                     } else if (data.event === "media") {
                         if (session.sttStream) {
@@ -191,16 +200,13 @@ class MediaStreamHandler {
                     console.error("❌ WS message error:", err);
                 }
             });
-
             ws.on("close", () => {
                 console.log("🔌 WebSocket closed");
                 this.endSession(callId);
             });
-
             ws.on("error", (error) => {
                 console.error("❌ WebSocket error:", error);
             });
-
         } catch (err) {
             console.error("❌ Error handling connection:", err);
             if (callId) {
@@ -209,7 +215,6 @@ class MediaStreamHandler {
             ws.close();
         }
     }
-
     async callLLM(session) {
         try {
             const response = await this.llmService.generateContent({
@@ -217,23 +222,23 @@ class MediaStreamHandler {
                 contents: session.context,
                 config: { systemInstruction: session.agentPrompt },
             });
-
             return response.text;
         } catch (err) {
             console.error("❌ LLM error:", err);
             return "I apologize, I'm having trouble processing that right now.";
         }
     }
-
     async synthesizeTTS(text, voiceId) {
         try {
-            const apiKey = process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY;
+            // ✅ FIX: Get fresh API key each time
+            const apiKey = this.getElevenLabsApiKey();
+            
             if (!apiKey) {
                 console.error("❌ Missing ElevenLabs API key");
                 return null;
             }
-
             console.log(`🔊 Synthesizing TTS with voice: ${voiceId}`);
+            console.log(`🔑 Using API key: ${apiKey.substring(0, 8)}...`);
 
             const response = await nodeFetch(
                 `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -257,13 +262,11 @@ class MediaStreamHandler {
                     })
                 }
             );
-
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error(`❌ ElevenLabs API error: ${response.status} - ${errorText}`);
                 return null;
             }
-
             const audioBuffer = await response.buffer();
             console.log(`✅ TTS generated: ${audioBuffer.length} bytes (µ-law 8kHz)`);
             return audioBuffer;
@@ -272,22 +275,15 @@ class MediaStreamHandler {
             return null;
         }
     }
-
     sendAudioToTwilio(session, audioBuffer) {
         try {
-            // ✅ FIXED: Queue audio if not ready yet
             if (!session.isReady || !session.streamSid) {
                 console.log("⏸️  Queueing audio - stream not ready yet");
                 session.audioQueue.push(audioBuffer);
                 return;
             }
-
             const base64Audio = audioBuffer.toString("base64");
-            
-            // ✅ FIXED: Correct chunking for µ-law 8kHz
-            // 160 bytes of µ-law = 20ms of audio
-            // Base64 encoding: 160 bytes → 214 chars
-            const chunkSize = 214; // Adjusted to match 160 bytes µ-law
+            const chunkSize = 214; // 160 bytes µ-law = 214 chars base64
             let chunksSent = 0;
 
             for (let i = 0; i < base64Audio.length; i += chunkSize) {
@@ -303,7 +299,6 @@ class MediaStreamHandler {
                 );
                 chunksSent++;
             }
-
             // Send mark to indicate audio completion
             session.ws.send(
                 JSON.stringify({
@@ -312,12 +307,10 @@ class MediaStreamHandler {
                     mark: { name: "audio_complete" },
                 })
             );
-
             console.log(`✅ Sent ${chunksSent} audio chunks to Twilio (streamSid: ${session.streamSid})`);
         } catch (err) {
             console.error("❌ Error sending audio to Twilio:", err);
         }
     }
 }
-
 module.exports = { MediaStreamHandler };
