@@ -2504,11 +2504,54 @@ app.ws('/api/stt', function (ws, req) {
 });
 // WebSocket for Twilio → Deepgram → Gemini → ElevenLabs
 app.ws('/api/call', (ws, req) => {
-  if (!mediaStreamHandler) {
-    ws.close();
+  console.log('🎯 ========== WEBSOCKET CONNECTION ATTEMPT ==========');
+  console.log('   Request URL:', req.url);
+  console.log('   Full path:', req._parsedUrl ? req._parsedUrl.path : 'not available');
+  
+  // ✅ FIX: Parse query parameters from the ORIGINAL URL before express-ws strips it
+  const urlParts = req.url.split('?');
+  const queryString = urlParts[1] || '';
+  const params = new URLSearchParams(queryString);
+  
+  const callId = params.get('callId');
+  const agentId = params.get('agentId');
+  const contactId = params.get('contactId');
+  
+  console.log('   Parsed params:', { callId, agentId, contactId });
+  
+  if (!callId && !contactId) {
+    console.error('❌ Missing callId or contactId after parsing');
+    console.log('   Query string was:', queryString);
+    console.log('   All params:', Array.from(params.entries()));
+    ws.close(1008, 'Missing required parameters');
     return;
   }
-  mediaStreamHandler.handleConnection(ws, req);
+  
+  if (!mediaStreamHandler) {
+    console.error('❌ MediaStreamHandler not initialized!');
+    ws.close(1011, 'MediaStreamHandler not available');
+    return;
+  }
+  
+  console.log('✅ MediaStreamHandler is available, handling connection...');
+  
+  // ✅ FIX: Create a modified request object with query params restored
+  const modifiedReq = {
+    ...req,
+    query: {
+      callId: callId || contactId,
+      agentId: agentId,
+      contactId: contactId
+    },
+    url: req.url // Keep original URL
+  };
+  
+  try {
+    mediaStreamHandler.handleConnection(ws, modifiedReq);
+  } catch (error) {
+    console.error('❌ Error in mediaStreamHandler.handleConnection:', error);
+    ws.close(1011, 'Internal server error');
+  }
 });
 // WebSocket endpoint for voice stream (frontend voice chat + Twilio calls)
 app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
