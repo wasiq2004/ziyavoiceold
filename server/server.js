@@ -3337,45 +3337,63 @@ server.on('upgrade', (request, socket, head) => {
   }
   // ---------- CALL WS ENDPOINT ----------
   else if (pathname.startsWith('/api/call')) {
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      console.log('✅ Call WebSocket connected');
-
-      const parsedUrl = url.parse(request.url, true);
-      const callId = parsedUrl.query.callId;
-
-      if (!callId) {
-        console.error('❌ No callId provided');
-        ws.close(1008, 'callId is required');
-        return;
-      }
-      console.log('📞 New call connection:', callId);
-
+  // Your call WebSocket endpoint
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    console.log('✅ Call WebSocket connected');
+    // Parse the FULL URL including query parameters
+    const parsedUrl = url.parse(request.url, true);
+    const queryParams = parsedUrl.query;
+    console.log('📋 Parsed query params:', queryParams);
+    const callId = queryParams.callId;
+    const agentId = queryParams.agentId;
+    const contactId = queryParams.contactId;
+    
+    // For Twilio connections, we might not have callId immediately
+    // It will come in the 'start' event
+    console.log('🎯 WebSocket connection from Twilio');
+    console.log('   callId:', callId || 'Will receive in start event');
+    console.log('   agentId:', agentId || 'Not provided');
+    console.log('   contactId:', contactId || 'Not provided');
+    try {
+      // Import MediaStreamHandler
       const MediaStreamHandler = require('./services/mediaStreamHandler');
+      
       if (typeof MediaStreamHandler !== 'function') {
         console.error('❌ MediaStreamHandler is not available');
         ws.close(1011, 'Service unavailable');
         return;
       }
-
-      try {
-        const handler = new MediaStreamHandler(ws, callId);
-
-        ws.on('error', (error) => {
-          console.error('🚨 Call WebSocket error:', error);
-          handler?.cleanup?.();
+      console.log('✅ MediaStreamHandler available, creating handler...');
+      // Create handler - it will handle the start event
+      const handler = new MediaStreamHandler(ws, callId, agentId, contactId);
+      // Error handler
+      ws.on('error', (error) => {
+        console.error('🚨 Call WebSocket error:', error);
+        if (handler && typeof handler.cleanup === 'function') {
+          handler.cleanup();
+        }
+      });
+      
+      // Close handler
+      ws.on('close', (code, reason) => {
+        console.log('👋 Call WebSocket closed:', {
+          code,
+          reason: reason?.toString(),
+          callId: callId || 'unknown'
         });
-
-        ws.on('close', () => {
-          console.log('👋 Call WebSocket closed:', callId);
-          handler?.cleanup?.();
-        });
-
-      } catch (error) {
-        console.error('🚨 Error creating MediaStreamHandler:', error);
-        ws.close(1011, 'Internal server error');
-      }
-    });
-  }
+        if (handler && typeof handler.cleanup === 'function') {
+          handler.cleanup();
+        }
+      });
+      
+      console.log('✅ WebSocket handlers registered');
+      
+    } catch (error) {
+      console.error('🚨 Error creating MediaStreamHandler:', error);
+      ws.close(1011, 'Internal server error');
+    }
+  });
+}
   // ---------- UNKNOWN ENDPOINT ----------
   else {
     console.log('❌ Unknown WebSocket endpoint:', pathname);
