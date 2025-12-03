@@ -63,31 +63,34 @@ async handleConnection(ws, req) {
     let session = null;
     
     try {
-        console.log(`📞 WebSocket connection initiated`);
+        console.log(`📞 WebSocket connection initiated from handleConnection`);
         
-        // ✅ CRITICAL: Configure WebSocket for binary FIRST
-        ws._socket.setNoDelay(true);
+        // ❌ REMOVE THIS LINE - it causes the UTF-8 error on Railway
+        // ws._socket.setNoDelay(true);
         
-        // ✅ CRITICAL: Handle errors without crashing
+        // ✅ Set up error handler FIRST before any other operations
         ws.on("error", (error) => {
-            if (error.code === 'WS_ERR_INVALID_UTF8') {
-                console.warn("⚠️  Non-UTF8 frame (normal for binary)");
+            // Ignore UTF-8 errors from binary frames (Twilio sends binary audio data)
+            if (error.code === 'WS_ERR_INVALID_UTF8' || 
+                error.message?.includes('invalid UTF-8') ||
+                error.message?.includes('Invalid WebSocket frame')) {
+                console.log("⚠️  Ignoring binary frame error (normal for audio data)");
                 return; // Don't crash
             }
             console.error("❌ WebSocket error:", error);
         });
 
-        // ✅ CRITICAL: Wait for Twilio "start" event to get parameters
+        // ✅ Handle WebSocket messages
         ws.on("message", async (message) => {
             try {
                 let data;
                 
-                // Handle binary messages
+                // Handle binary messages (audio from Twilio)
                 if (Buffer.isBuffer(message)) {
                     try {
                         data = JSON.parse(message.toString('utf8'));
                     } catch (e) {
-                        return; // Ignore non-JSON binary
+                        return; // Ignore non-JSON binary (could be raw audio)
                     }
                 } else if (typeof message === 'string') {
                     data = JSON.parse(message);
@@ -100,8 +103,8 @@ async handleConnection(ws, req) {
                     console.log("▶️  Media Stream START event received");
                     
                     // Extract parameters from start event
-                    const streamParams = data.start.customParameters || {};
-                    callId = streamParams.callId || data.start.callSid;
+                    const streamParams = data.start?.customParameters || {};
+                    callId = streamParams.callId || data.start?.callSid;
                     agentId = streamParams.agentId;
                     const userId = streamParams.userId;
                     
@@ -135,7 +138,7 @@ async handleConnection(ws, req) {
                                 console.log(`✅ Loaded agent: ${agent.name}`);
                             }
                         } catch (err) {
-                            console.error("Error loading agent:", err);
+                            console.error("⚠️  Error loading agent:", err.message);
                         }
                     }
 
@@ -186,12 +189,16 @@ async handleConnection(ws, req) {
                         console.log("✅ Deepgram opened");
                     });
 
-                    // Send greeting
+                    // Send greeting after a short delay
                     setTimeout(async () => {
-                        console.log(`👋 Greeting: "${session.greetingMessage}"`);
-                        const audio = await this.synthesizeTTS(session.greetingMessage, session.agentVoiceId);
-                        if (audio) {
-                            this.sendAudioToTwilio(session, audio);
+                        try {
+                            console.log(`👋 Greeting: "${session.greetingMessage}"`);
+                            const audio = await this.synthesizeTTS(session.greetingMessage, session.agentVoiceId);
+                            if (audio) {
+                                this.sendAudioToTwilio(session, audio);
+                            }
+                        } catch (err) {
+                            console.error("❌ Greeting error:", err);
                         }
                     }, 500);
 
@@ -215,18 +222,27 @@ async handleConnection(ws, req) {
                 }
                 
             } catch (err) {
-                console.error("❌ Message error:", err);
+                // Only log if it's not a JSON parsing error
+                if (!err.message?.includes('JSON') && !err.message?.includes('Unexpected')) {
+                    console.error("❌ Message processing error:", err);
+                }
             }
         });
 
         ws.on("close", () => {
-            console.log("🔌 Closed");
+            console.log("🔌 WebSocket closed");
             if (callId) this.endSession(callId);
         });
 
+        console.log("✅ WebSocket handlers registered and ready");
+
     } catch (err) {
-        console.error("❌ Connection error:", err);
-        ws.close();
+        console.error("❌ Connection setup error:", err);
+        try {
+            ws.close();
+        } catch (closeErr) {
+            // Ignore close errors
+        }
     }
 }
     async callLLM(session) {
