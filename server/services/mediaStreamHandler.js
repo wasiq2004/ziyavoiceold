@@ -78,58 +78,43 @@ async handleConnection(ws, req) {
         });
 
         // ✅ CRITICAL: Wait for Twilio "start" event to get parameters
-        ws.on("message", async (data, isBinary) => {
-    try {
-        // ------------------------------------------------------
-        // 1️⃣ If binary → it's AUDIO, never try to JSON.parse it
-        // ------------------------------------------------------
-        if (isBinary) {
-            if (mediaStreamHandler.handleAudio) {
-                mediaStreamHandler.handleAudio(data);
-            }
-            return; 
-        }
+        ws.on("message", async (message) => {
+            try {
+                let data;
+                
+                // Handle binary messages
+                if (Buffer.isBuffer(message)) {
+                    try {
+                        data = JSON.parse(message.toString('utf8'));
+                    } catch (e) {
+                        return; // Ignore non-JSON binary
+                    }
+                } else if (typeof message === 'string') {
+                    data = JSON.parse(message);
+                } else {
+                    return;
+                }
 
-        // ------------------------------------------------------
-        // 2️⃣ If text → must be a JSON event (start, media, stop)
-        // ------------------------------------------------------
-        let event;
-        try {
-            event = JSON.parse(data.toString());
-        } catch (err) {
-            console.error("❌ Invalid JSON frame:", err);
-            return;
-        }
+                // ✅ Get parameters from Twilio "start" event
+                if (data.event === "start") {
+                    console.log("▶️  Media Stream START event received");
+                    
+                    // Extract parameters from start event
+                    const streamParams = data.start.customParameters || {};
+                    callId = streamParams.callId || data.start.callSid;
+                    agentId = streamParams.agentId;
+                    const userId = streamParams.userId;
+                    
+                    console.log(`📞 Call ID: ${callId}`);
+                    console.log(`🤖 Agent ID: ${agentId}`);
+                    console.log(`👤 User ID: ${userId}`);
 
-        // ------------------------------------------------------
-        // 3️⃣ Handle Twilio start event (same logic you already have)
-        // ------------------------------------------------------
-        if (event.event === "start") {
-            console.log("▶️  Media Stream START event received");
+                    if (!callId) {
+                        console.error("❌ No callId in start event");
+                        ws.close();
+                        return;
+                    }
 
-            const streamParams = event.start.customParameters || {};
-            callId = streamParams.callId || event.start.callSid;
-            agentId = streamParams.agentId;
-            const userId = streamParams.userId;
-
-            console.log(`📞 Call ID: ${callId}`);
-            console.log(`🤖 Agent ID: ${agentId}`);
-            console.log(`👤 User ID: ${userId}`);
-
-            if (!callId) {
-                console.error("❌ No callId in start event");
-                ws.close();
-                return;
-            }
-
-        if (mediaStreamHandler.handleEvent) {
-            mediaStreamHandler.handleEvent(event);
-        }
-
-    } catch (err) {
-        console.error("🔥 WS message handler error:", err);
-    }
-});
                     // Load agent configuration
                     let agentPrompt = "You are a helpful AI assistant.";
                     let agentVoiceId = "21m00Tcm4TlvDq8ikWAM";
