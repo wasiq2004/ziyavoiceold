@@ -2500,36 +2500,7 @@ if (process.env.DEEPGRAM_API_KEY && process.env.GOOGLE_GEMINI_API_KEY) {
 // WebSocket endpoint for ElevenLabs STT
 app.ws('/api/stt', function (ws, req) {
   elevenLabsStreamHandler.handleConnection(ws, req);
-});
-// WebSocket for Twilio → Deepgram → Gemini → ElevenLabs
-app.ws('/api/call', (ws, req) => {
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🔌 TWILIO WEBSOCKET CONNECTION RECEIVED!');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('   URL:', req.url);
-  console.log('   IP:', req.headers['x-forwarded-for'] || req.connection.remoteAddress);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-  if (!mediaStreamHandler) {
-    console.error('❌ FATAL: MediaStreamHandler is NOT initialized!');
-    ws.send(JSON.stringify({
-      event: 'error',
-      message: 'Voice pipeline not configured. Missing API keys.'
-    }));
-    ws.close();
-    return;
-  }
-
-  console.log('✅ Passing connection to MediaStreamHandler...');
-
-  try {
-    mediaStreamHandler.handleConnection(ws, req);
-    console.log('✅ Connection handed off to MediaStreamHandler');
-  } catch (err) {
-    console.error('❌ Error in MediaStreamHandler.handleConnection:', err);
-    ws.close();
-  }
-});
+}
 // WebSocket endpoint for voice stream (frontend voice chat + Twilio calls)
 app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
   console.log('New voice stream connection established');
@@ -3187,23 +3158,6 @@ async function processCampaignCalls(campaignId, userId, campaign, records) {
         callId: callId,
         appUrl: cleanAppUrl
       });
-      // Add this AFTER creating the HTTP server and BEFORE defining routes:
-// ✅ Comprehensive WebSocket connection monitoring
-server.on('upgrade', (request, socket, head) => {
-  console.log('🔄 ========== HTTP UPGRADE REQUEST ==========');
-  console.log('   URL:', request.url);
-  console.log('   Headers:', {
-    upgrade: request.headers.upgrade,
-    connection: request.headers.connection,
-    'sec-websocket-version': request.headers['sec-websocket-version'],
-    'sec-websocket-key': request.headers['sec-websocket-key'] ? 'present' : 'missing',
-    origin: request.headers.origin || 'not provided',
-    host: request.headers.host
-  });
-  console.log('   Remote Address:', socket.remoteAddress);
-  console.log('============================================');
-});
-
 // ✅ Log all incoming HTTP requests to spot patterns
 app.use((req, res, next) => {
   const isWebSocket = req.headers.upgrade === 'websocket';
@@ -3247,24 +3201,6 @@ app.get("/db-conn-status", async (req, res) => {
     console.error("MYSQL CONNECTION ERROR:", error);
     res.json({ success: false, error: error.message || "No message" });
   }
-});
-
-// ===========================================
-// 🔎 GLOBAL WEBSOCKET + HTTP REQUEST LOGGING
-// ==========================================
-server.on('upgrade', (request, socket, head) => {
-  console.log('🔄 ========== HTTP UPGRADE REQUEST ==========');
-  console.log('   URL:', request.url);
-  console.log('   Headers:', {
-    upgrade: request.headers.upgrade,
-    connection: request.headers.connection,
-    'sec-websocket-version': request.headers['sec-websocket-version'],
-    'sec-websocket-key': request.headers['sec-websocket-key'] ? 'present' : 'missing',
-    origin: request.headers.origin || 'not provided',
-    host: request.headers.host
-  });
-  console.log('   Remote Address:', socket.remoteAddress);
-  console.log('============================================');
 });
 // Log important HTTP requests
 app.use((req, res, next) => {
