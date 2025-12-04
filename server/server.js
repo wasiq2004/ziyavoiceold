@@ -62,17 +62,6 @@ const googleSheetsService = require('./services/googleSheetsService.js');
 googleSheetsService.initialize();
 // Initialize MediaStreamHandler for voice call pipeline
 let mediaStreamHandler = null;
-
-if (process.env.DEEPGRAM_API_KEY && process.env.GOOGLE_GEMINI_API_KEY) {
-  mediaStreamHandler = new MediaStreamHandler(
-    process.env.DEEPGRAM_API_KEY,
-    process.env.GOOGLE_GEMINI_API_KEY,
-    campaignService
-  );
-  console.log("MediaStreamHandler initialized with Deepgram + Gemini");
-} else {
-  console.warn("Voice call feature disabled — missing DEEPGRAM_API_KEY or GOOGLE_GEMINI_API_KEY");
-}
 const agentService = new AgentService(mysqlPool);
 console.log('✅ WebSocket support enabled on HTTP server');
 
@@ -2498,6 +2487,16 @@ app.post('/api/voices/elevenlabs/preview', async (req, res) => {
   }
 });
 
+if (process.env.DEEPGRAM_API_KEY && process.env.GOOGLE_GEMINI_API_KEY) {
+  mediaStreamHandler = new MediaStreamHandler(
+    process.env.DEEPGRAM_API_KEY,
+    process.env.GOOGLE_GEMINI_API_KEY,
+    campaignService
+  );
+  console.log("MediaStreamHandler initialized with Deepgram + Gemini");
+} else {
+  console.warn("Voice call feature disabled — missing DEEPGRAM_API_KEY or GOOGLE_GEMINI_API_KEY");
+}
 // WebSocket endpoint for ElevenLabs STT
 app.ws('/api/stt', function (ws, req) {
   elevenLabsStreamHandler.handleConnection(ws, req);
