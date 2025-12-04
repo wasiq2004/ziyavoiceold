@@ -157,7 +157,7 @@ ws.on("message", async (message) => {
                 sample_rate: 8000,
                 model: "nova-2-phonecall",
                 smart_format: true,
-                interim_results: false,
+                interim_results: true,
                 utterance_end_ms: 1000,
                 punctuate: true,
             });
@@ -166,6 +166,9 @@ ws.on("message", async (message) => {
 
             deepgramLive.on("Transcript", async (transcriptData) => {
                 try {
+                    // Ignore interim results - only process final transcripts
+                    if (!transcriptData.is_final) return;
+                    
                     const transcript = transcriptData.channel?.alternatives?.[0]?.transcript;
                     if (!transcript?.trim()) return;
 
