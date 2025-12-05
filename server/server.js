@@ -2460,7 +2460,38 @@ app.post('/api/tools/google-sheets/append', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+// Get available voices from ElevenLabs
+app.get('/api/voices/elevenlabs', async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVEN_LABS_API_KEY || process.env.VITE_ELEVEN_LABS_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ success: false, message: 'ElevenLabs API key not configured' });
+    }
 
+    const response = await nodeFetch('https://api.elevenlabs.io/v1/voices', {
+      headers: {
+        'xi-api-key': apiKey
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`ElevenLabs API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const voices = data.voices.map(v => ({
+      id: v.voice_id,
+      name: v.name,
+      category: v.category,
+      preview_url: v.preview_url
+    }));
+
+    res.json({ success: true, voices });
+  } catch (error) {
+    console.error('Error fetching voices:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 // Voice preview endpoint
 app.post('/api/voices/elevenlabs/preview', async (req, res) => {
   try {
