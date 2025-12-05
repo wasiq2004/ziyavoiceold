@@ -76,169 +76,185 @@ async handleConnection(ws, req) {
             }
             console.error("❌ WebSocket error:", error);
         });
-        // ✅ Handle WebSocket messages
-ws.on("message", async (message) => {
-    try {
-        let data;
-        
-        // ✅ CRITICAL: Handle binary messages from Twilio
-        if (Buffer.isBuffer(message)) {
-            // Binary message - try to parse as JSON first
+
+        ws.on("message", async (message) => {
             try {
-                const messageStr = message.toString('utf8');
-                data = JSON.parse(messageStr);
-            } catch (e) {
-                // Not JSON - could be raw audio, ignore
-                console.log('⚠️  Received non-JSON binary message, ignoring');
-                return;
-            }
-        } else if (typeof message === 'string') {
-            // String message - parse as JSON
-            data = JSON.parse(message);
-        } else {
-            // Unknown message type
-            console.log('⚠️  Unknown message type, ignoring');
-            return;
-        }
-
-        // ✅ Get parameters from Twilio "start" event
-        if (data.event === "start") {
-            console.log("▶️  Media Stream START event received");
-            
-            // Extract parameters from start event
-            const streamParams = data.start?.customParameters || {};
-            callId = streamParams.callId || data.start?.callSid;
-            agentId = streamParams.agentId;
-            const userId = streamParams.userId;
-            
-            console.log(`📞 Call ID: ${callId}`);
-            console.log(`🤖 Agent ID: ${agentId}`);
-            console.log(`👤 User ID: ${userId}`);
-
-            if (!callId) {
-                console.error("❌ No callId in start event");
-                ws.close();
-                return;
-            }
-
-            // Load agent configuration
-            let agentPrompt = "You are a helpful AI assistant.";
-            let agentVoiceId = "21m00Tcm4TlvDq8ikWAM";
-            let greetingMessage = "Hello! How can I help you today?";
-
-            if (agentId) {
-                try {
-                    const AgentService = require('./agentService.js');
-                    const agentService = new AgentService(require('../config/database.js').default);
-                    
-                    const agent = await agentService.getAgentById(userId, agentId);
-                    if (agent) {
-                        agentPrompt = agent.identity || agentPrompt;
-                        agentVoiceId = agent.voiceId || agentVoiceId;
-                        if (agent.settings?.greetingLine) {
-                            greetingMessage = agent.settings.greetingLine;
-                        }
-                        console.log(`✅ Loaded agent: ${agent.name}`);
+                let data;
+                
+                // ✅ CRITICAL: Handle binary messages from Twilio
+                if (Buffer.isBuffer(message)) {
+                    // Binary message - try to parse as JSON first
+                    try {
+                        const messageStr = message.toString('utf8');
+                        data = JSON.parse(messageStr);
+                    } catch (e) {
+                        // Not JSON - could be raw audio, ignore
+                        return;
                     }
-                } catch (err) {
-                    console.error("⚠️  Error loading agent:", err.message);
+                } else if (typeof message === 'string') {
+                    // String message - parse as JSON
+                    data = JSON.parse(message);
+                } else {
+                    // Unknown message type
+                    return;
                 }
-            }
 
-            // Create session
-            session = this.createSession(callId, agentPrompt, agentVoiceId, ws);
-            session.greetingMessage = greetingMessage;
-            session.streamSid = data.start.streamSid;
-            session.isReady = true;
-
-            // Initialize Deepgram
-            const deepgramLive = this.deepgramClient.listen.live({
-                encoding: "mulaw",
-                sample_rate: 8000,
-                model: "nova-2-phonecall",
-                smart_format: true,
-                interim_results: true,
-                utterance_end_ms: 1000,
-                punctuate: true,
-            });
-
-            session.sttStream = deepgramLive;
-
-            deepgramLive.on("Transcript", async (transcriptData) => {
-                try {
-                    // Ignore interim results - only process final transcripts
-                    if (!transcriptData.is_final) return;
+                // ✅ Get parameters from Twilio "start" event
+                if (data.event === "start") {
+                    console.log("▶️  Media Stream START event received");
                     
-                    const transcript = transcriptData.channel?.alternatives?.[0]?.transcript;
-                    if (!transcript?.trim()) return;
+                    // Extract parameters from start event
+                    const streamParams = data.start?.customParameters || {};
+                    callId = streamParams.callId || data.start?.callSid;
+                    agentId = streamParams.agentId;
+                    const userId = streamParams.userId;
+                    
+                    console.log(`📞 Call ID: ${callId}`);
+                    console.log(`🤖 Agent ID: ${agentId}`);
+                    console.log(`👤 User ID: ${userId}`);
 
-                    console.log(`🎤 "${transcript}"`);
-                    this.appendToContext(session, transcript, "user");
-
-                    const llmResponse = await this.callLLM(session);
-                    this.appendToContext(session, llmResponse, "model");
-
-                    const ttsAudio = await this.synthesizeTTS(llmResponse, session.agentVoiceId);
-                    if (ttsAudio) {
-                        this.sendAudioToTwilio(session, ttsAudio);
+                    if (!callId) {
+                        console.error("❌ No callId in start event");
+                        ws.close();
+                        return;
                     }
-                } catch (err) {
-                    console.error("❌ Transcript error:", err);
-                }
-            });
 
-             deepgramLive.on("Error", (error) => {
-                            console.error("❌ Deepgram error:", error.message || "Unknown error");
-                            if (error.message && !error.message.includes("NET_")) {
+                    // Load agent configuration
+                    let agentPrompt = "You are a helpful AI assistant.";
+                    let agentVoiceId = "21m00Tcm4TlvDq8ikWAM"; // Default voice
+                    let greetingMessage = "Hello! How can I help you today?";
+
+                    if (agentId) {
+                        try {
+                            const AgentService = require('./agentService.js');
+                            const agentService = new AgentService(require('../config/database.js').default);
+                            
+                            const agent = await agentService.getAgentById(userId, agentId);
+                            if (agent) {
+                                agentPrompt = agent.identity || agentPrompt;
+                                
+                                // ✅ CRITICAL: Use the voice ID directly from database
+                                if (agent.voiceId) {
+                                    agentVoiceId = agent.voiceId;
+                                    console.log(`🎤 Using agent voice ID from database: ${agentVoiceId}`);
+                                } else {
+                                    console.warn(`⚠️  Agent has no voiceId, using default: ${agentVoiceId}`);
+                                }
+                                
+                                if (agent.settings?.greetingLine) {
+                                    greetingMessage = agent.settings.greetingLine;
+                                }
+                                console.log(`✅ Loaded agent: ${agent.name}`);
+                                console.log(`   Voice ID: ${agentVoiceId}`);
+                                console.log(`   Prompt: ${agentPrompt.substring(0, 100)}...`);
+                            } else {
+                                console.warn(`⚠️  Agent ${agentId} not found, using defaults`);
                             }
-                        });
-                        deepgramLive.on("Open", () => {
-                            console.log("✅ Deepgram opened");
-                        });
-
-                        deepgramLive.on("Close", () => {
-                            console.log("⚠️ Deepgram connection closed");
-                        });
-            // Send greeting after a short delay
-            setTimeout(async () => {
-                try {
-                    console.log(`👋 Greeting: "${session.greetingMessage}"`);
-                    const audio = await this.synthesizeTTS(session.greetingMessage, session.agentVoiceId);
-                    if (audio) {
-                        this.sendAudioToTwilio(session, audio);
+                        } catch (err) {
+                            console.error("⚠️  Error loading agent:", err.message);
+                        }
+                    } else {
+                        console.log(`ℹ️  No agentId provided, using default voice: ${agentVoiceId}`);
                     }
-                } catch (err) {
-                    console.error("❌ Greeting error:", err);
-                }
-            }, 500);
 
-        } else if (data.event === "connected") {
-            console.log("✅ Twilio connected");
-            
-        } else if (data.event === "media") {
-            // ✅ Send audio directly to Deepgram
-            if (session?.sttStream && data.media?.payload) {
-                const audioBuffer = Buffer.from(data.media.payload, "base64");
-                if (audioBuffer.length > 0) {
-                    session.sttStream.send(audioBuffer);
+                    // Create session with the correct voice ID
+                    session = this.createSession(callId, agentPrompt, agentVoiceId, ws);
+                    console.log(`✅ Session created with voice ID: ${session.agentVoiceId}`);
+                    
+                    session.greetingMessage = greetingMessage;
+                    session.streamSid = data.start.streamSid;
+                    session.isReady = true;
+
+                    // Initialize Deepgram
+                    const deepgramLive = this.deepgramClient.listen.live({
+                        encoding: "mulaw",
+                        sample_rate: 8000,
+                        model: "nova-2-phonecall",
+                        smart_format: true,
+                        interim_results: true,
+                        utterance_end_ms: 1000,
+                        punctuate: true,
+                    });
+
+                    session.sttStream = deepgramLive;
+
+                    deepgramLive.on("Transcript", async (transcriptData) => {
+                        try {
+                            // Ignore interim results - only process final transcripts
+                            if (!transcriptData.is_final) return;
+                            
+                            const transcript = transcriptData.channel?.alternatives?.[0]?.transcript;
+                            if (!transcript?.trim()) return;
+
+                            console.log(`🎤 "${transcript}"`);
+                            this.appendToContext(session, transcript, "user");
+
+                            const llmResponse = await this.callLLM(session);
+                            this.appendToContext(session, llmResponse, "model");
+
+                            console.log(`🔊 Synthesizing response with voice: ${session.agentVoiceId}`);
+                            const ttsAudio = await this.synthesizeTTS(llmResponse, session.agentVoiceId);
+                            if (ttsAudio) {
+                                this.sendAudioToTwilio(session, ttsAudio);
+                            }
+                        } catch (err) {
+                            console.error("❌ Transcript error:", err);
+                        }
+                    });
+
+                    deepgramLive.on("Error", (error) => {
+                        console.error("❌ Deepgram error:", error.message || "Unknown error");
+                    });
+
+                    deepgramLive.on("Open", () => {
+                        console.log("✅ Deepgram opened");
+                    });
+
+                    deepgramLive.on("Close", () => {
+                        console.log("⚠️ Deepgram connection closed");
+                    });
+
+                    // Send greeting after a short delay
+                    setTimeout(async () => {
+                        try {
+                            console.log(`👋 Greeting: "${session.greetingMessage}"`);
+                            console.log(`🔊 Using voice ID for greeting: ${session.agentVoiceId}`);
+                            const audio = await this.synthesizeTTS(session.greetingMessage, session.agentVoiceId);
+                            if (audio) {
+                                this.sendAudioToTwilio(session, audio);
+                            }
+                        } catch (err) {
+                            console.error("❌ Greeting error:", err);
+                        }
+                    }, 500);
+
+                } else if (data.event === "connected") {
+                    console.log("✅ Twilio connected");
+                    
+                } else if (data.event === "media") {
+                    // ✅ Send audio directly to Deepgram
+                    if (session?.sttStream && data.media?.payload) {
+                        const audioBuffer = Buffer.from(data.media.payload, "base64");
+                        if (audioBuffer.length > 0) {
+                            session.sttStream.send(audioBuffer);
+                        }
+                    }
+                    
+                } else if (data.event === "stop") {
+                    console.log("⏹️  Stream stopped");
+                    if (callId) this.endSession(callId);
+                    
+                } else if (data.event === "mark") {
+                    console.log("📍 Mark:", data.mark?.name);
+                }
+                
+            } catch (err) {
+                // Only log real errors
+                if (!err.message?.includes('JSON') && !err.message?.includes('Unexpected')) {
+                    console.error("❌ Message processing error:", err);
                 }
             }
-            
-        } else if (data.event === "stop") {
-            console.log("⏹️  Stream stopped");
-            if (callId) this.endSession(callId);
-            
-        } else if (data.event === "mark") {
-            console.log("📍 Mark:", data.mark?.name);
-        }
-        
-    } catch (err) {
-        // Only log real errors, not JSON parsing errors for binary data
-        if (!err.message?.includes('JSON') && !err.message?.includes('Unexpected')) {
-            console.error("❌ Message processing error:", err);
-        }
-    }
-});
+        });
 
         ws.on("close", () => {
             console.log("🔌 WebSocket closed");
@@ -270,52 +286,57 @@ ws.on("message", async (message) => {
         }
     }
     async synthesizeTTS(text, voiceId) {
-        try {
-            // ✅ FIX: Get fresh API key each time
-            const apiKey = this.getElevenLabsApiKey();
-            
-            if (!apiKey) {
-                console.error("❌ Missing ElevenLabs API key");
-                return null;
-            }
-            console.log(`🔊 Synthesizing TTS with voice: ${voiceId}`);
-            console.log(`🔑 Using API key: ${apiKey.substring(0, 8)}...`);
-
-            const response = await nodeFetch(
-                `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'audio/basic',
-                        'Content-Type': 'application/json',
-                        'xi-api-key': apiKey,
-                    },
-                    body: JSON.stringify({
-                        text: text,
-                        model_id: 'eleven_turbo_v2_5',
-                        voice_settings: {
-                            stability: 0.5,
-                            similarity_boost: 0.75,
-                            style: 0.0,
-                            use_speaker_boost: true
-                        },
-                        output_format: 'ulaw_8000'
-                    })
-                }
-            );
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`❌ ElevenLabs API error: ${response.status} - ${errorText}`);
-                return null;
-            }
-            const audioBuffer = await response.buffer();
-            console.log(`✅ TTS generated: ${audioBuffer.length} bytes (µ-law 8kHz)`);
-            return audioBuffer;
-        } catch (err) {
-            console.error("❌ TTS error:", err);
+    try {
+        // ✅ FIX: Get fresh API key each time
+        const apiKey = this.getElevenLabsApiKey();
+        
+        if (!apiKey) {
+            console.error("❌ Missing ElevenLabs API key");
             return null;
         }
+        
+        console.log(`🔊 Synthesizing TTS:`);
+        console.log(`   Text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+        console.log(`   Voice ID: ${voiceId}`);
+        console.log(`   API Key: ${apiKey.substring(0, 8)}...`);
+
+        const response = await nodeFetch(
+            `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Accept': 'audio/basic',
+                    'Content-Type': 'application/json',
+                    'xi-api-key': apiKey,
+                },
+                body: JSON.stringify({
+                    text: text,
+                    model_id: 'eleven_turbo_v2_5',
+                    voice_settings: {
+                        stability: 0.5,
+                        similarity_boost: 0.75,
+                        style: 0.0,
+                        use_speaker_boost: true
+                    },
+                    output_format: 'ulaw_8000'
+                })
+            }
+        );
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ ElevenLabs API error: ${response.status} - ${errorText}`);
+            return null;
+        }
+        
+        const audioBuffer = await response.buffer();
+        console.log(`✅ TTS generated: ${audioBuffer.length} bytes (µ-law 8kHz) using voice ${voiceId}`);
+        return audioBuffer;
+    } catch (err) {
+        console.error("❌ TTS error:", err);
+        return null;
     }
+}
     sendAudioToTwilio(session, audioBuffer) {
         try {
             if (!session.isReady || !session.streamSid) {
