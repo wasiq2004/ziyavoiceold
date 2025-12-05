@@ -94,11 +94,11 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/api/wallet/balance/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     const balance = await walletService.getBalance(userId);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       balance: balance,
       currency: 'USD'
     });
@@ -114,11 +114,11 @@ app.get('/api/wallet/transactions/:userId', async (req, res) => {
     const { userId } = req.params;
     const limit = parseInt(req.query.limit) || 50;
     const offset = parseInt(req.query.offset) || 0;
-    
+
     const transactions = await walletService.getTransactions(userId, limit, offset);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       transactions: transactions
     });
   } catch (error) {
@@ -132,11 +132,11 @@ app.get('/api/wallet/usage-stats/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const { startDate, endDate } = req.query;
-    
+
     const stats = await walletService.getUsageStats(userId, startDate, endDate);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       stats: stats
     });
   } catch (error) {
@@ -149,9 +149,9 @@ app.get('/api/wallet/usage-stats/:userId', async (req, res) => {
 app.get('/api/wallet/pricing', async (req, res) => {
   try {
     const pricing = await walletService.getServicePricing();
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       pricing: pricing
     });
   } catch (error) {
@@ -166,28 +166,28 @@ app.get('/api/wallet/pricing', async (req, res) => {
 app.post('/api/admin/wallet/add-credits', async (req, res) => {
   try {
     const { userId, amount, description, adminId } = req.body;
-    
+
     if (!userId || !amount || !adminId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'User ID, amount, and admin ID are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'User ID, amount, and admin ID are required'
       });
     }
-    
+
     if (amount <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Amount must be greater than 0' 
+      return res.status(400).json({
+        success: false,
+        message: 'Amount must be greater than 0'
       });
     }
-    
+
     const result = await walletService.addCredits(
-      userId, 
-      amount, 
-      description || 'Admin credit adjustment', 
+      userId,
+      amount,
+      description || 'Admin credit adjustment',
       adminId
     );
-    
+
     // Log admin activity
     await adminService.logActivity(
       adminId,
@@ -196,9 +196,9 @@ app.post('/api/admin/wallet/add-credits', async (req, res) => {
       `Added $${amount} to wallet. Reason: ${description || 'N/A'}`,
       req.ip
     );
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       newBalance: result.newBalance,
       transaction: result.transaction
     });
@@ -212,30 +212,30 @@ app.post('/api/admin/wallet/add-credits', async (req, res) => {
 app.post('/api/admin/wallet/deduct-credits', async (req, res) => {
   try {
     const { userId, amount, description, adminId } = req.body;
-    
+
     if (!userId || !amount || !adminId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'User ID, amount, and admin ID are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'User ID, amount, and admin ID are required'
       });
     }
-    
+
     if (amount <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Amount must be greater than 0' 
+      return res.status(400).json({
+        success: false,
+        message: 'Amount must be greater than 0'
       });
     }
-    
+
     const result = await walletService.deductCredits(
-      userId, 
-      amount, 
+      userId,
+      amount,
       'admin_adjustment',
       description || 'Admin debit adjustment',
       null,
       { adjusted_by: adminId }
     );
-    
+
     // Log admin activity
     await adminService.logActivity(
       adminId,
@@ -244,22 +244,22 @@ app.post('/api/admin/wallet/deduct-credits', async (req, res) => {
       `Deducted $${amount} from wallet. Reason: ${description || 'N/A'}`,
       req.ip
     );
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       newBalance: result.newBalance,
       transaction: result.transaction
     });
   } catch (error) {
     console.error('Error deducting credits:', error);
-    
+
     if (error.message === 'Insufficient balance') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'User has insufficient balance' 
+      return res.status(400).json({
+        success: false,
+        message: 'User has insufficient balance'
       });
     }
-    
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -268,23 +268,23 @@ app.post('/api/admin/wallet/deduct-credits', async (req, res) => {
 app.post('/api/admin/wallet/update-pricing', async (req, res) => {
   try {
     const { serviceType, costPerUnit, adminId } = req.body;
-    
+
     if (!serviceType || !costPerUnit || !adminId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Service type, cost per unit, and admin ID are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Service type, cost per unit, and admin ID are required'
       });
     }
-    
+
     if (!['elevenlabs', 'deepgram', 'gemini'].includes(serviceType)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid service type' 
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid service type'
       });
     }
-    
+
     await walletService.updatePricing(serviceType, costPerUnit, adminId);
-    
+
     // Log admin activity
     await adminService.logActivity(
       adminId,
@@ -293,7 +293,7 @@ app.post('/api/admin/wallet/update-pricing', async (req, res) => {
       `Updated ${serviceType} pricing to $${costPerUnit} per unit`,
       req.ip
     );
-    
+
     res.json({ success: true, message: 'Pricing updated successfully' });
   } catch (error) {
     console.error('Error updating pricing:', error);
@@ -315,9 +315,9 @@ app.get('/api/admin/wallet/all-balances', async (req, res) => {
       JOIN users u ON uw.user_id = u.id
       ORDER BY uw.balance DESC
     `);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       wallets: wallets.map(w => ({
         userId: w.user_id,
         username: w.username,
@@ -332,7 +332,7 @@ app.get('/api/admin/wallet/all-balances', async (req, res) => {
   }
 });
 // ------------------------------------------------
- // For Twilio webhook form data
+// For Twilio webhook form data
 
 // Health check endpoint for Railway
 app.get('/healthz', (req, res) => {
@@ -351,28 +351,28 @@ app.get('/api/voice-config-check', (req, res) => {
     checks: {
       deepgram: {
         configured: !!process.env.DEEPGRAM_API_KEY,
-        keyPreview: process.env.DEEPGRAM_API_KEY 
-          ? process.env.DEEPGRAM_API_KEY.substring(0, 8) + '...' 
+        keyPreview: process.env.DEEPGRAM_API_KEY
+          ? process.env.DEEPGRAM_API_KEY.substring(0, 8) + '...'
           : 'NOT SET'
       },
       gemini: {
         configured: !!process.env.GOOGLE_GEMINI_API_KEY,
-        keyPreview: process.env.GOOGLE_GEMINI_API_KEY 
-          ? process.env.GOOGLE_GEMINI_API_KEY.substring(0, 8) + '...' 
+        keyPreview: process.env.GOOGLE_GEMINI_API_KEY
+          ? process.env.GOOGLE_GEMINI_API_KEY.substring(0, 8) + '...'
           : 'NOT SET'
       },
       elevenlabs: {
         configured: !!(process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY),
         keyPreview: (process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY)
-          ? (process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY).substring(0, 8) + '...' 
+          ? (process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY).substring(0, 8) + '...'
           : 'NOT SET'
       },
       appUrl: {
         configured: !!process.env.APP_URL,
         value: process.env.APP_URL || 'NOT SET',
-        isPublic: process.env.APP_URL && 
-                  !process.env.APP_URL.includes('localhost') && 
-                  !process.env.APP_URL.includes('127.0.0.1')
+        isPublic: process.env.APP_URL &&
+          !process.env.APP_URL.includes('localhost') &&
+          !process.env.APP_URL.includes('127.0.0.1')
       },
       mediaStreamHandler: {
         initialized: !!mediaStreamHandler,
@@ -380,143 +380,143 @@ app.get('/api/voice-config-check', (req, res) => {
       }
     }
   };
-// Add these endpoints RIGHT AFTER the /api/voice-config-check endpoint in server.js
+  // Add these endpoints RIGHT AFTER the /api/voice-config-check endpoint in server.js
 
-// Test ElevenLabs API key freshness
-app.get('/api/test-elevenlabs-key', async (req, res) => {
-  try {
-    const key1 = process.env.ELEVEN_LABS_API_KEY;
-    const key2 = process.env.ELEVENLABS_API_KEY;
-    
-    const result = {
-      timestamp: new Date().toISOString(),
-      keys: {
-        ELEVEN_LABS_API_KEY: {
-          exists: !!key1,
-          preview: key1 ? `${key1.substring(0, 8)}...` : 'NOT SET',
-          length: key1 ? key1.length : 0
-        },
-        ELEVENLABS_API_KEY: {
-          exists: !!key2,
-          preview: key2 ? `${key2.substring(0, 8)}...` : 'NOT SET',
-          length: key2 ? key2.length : 0
+  // Test ElevenLabs API key freshness
+  app.get('/api/test-elevenlabs-key', async (req, res) => {
+    try {
+      const key1 = process.env.ELEVEN_LABS_API_KEY;
+      const key2 = process.env.ELEVENLABS_API_KEY;
+
+      const result = {
+        timestamp: new Date().toISOString(),
+        keys: {
+          ELEVEN_LABS_API_KEY: {
+            exists: !!key1,
+            preview: key1 ? `${key1.substring(0, 8)}...` : 'NOT SET',
+            length: key1 ? key1.length : 0
+          },
+          ELEVENLABS_API_KEY: {
+            exists: !!key2,
+            preview: key2 ? `${key2.substring(0, 8)}...` : 'NOT SET',
+            length: key2 ? key2.length : 0
+          }
+        }
+      };
+
+      // Test the key with ElevenLabs API
+      const testKey = key1 || key2;
+      if (testKey) {
+        try {
+          const testResponse = await fetch('https://api.elevenlabs.io/v1/voices', {
+            headers: { 'xi-api-key': testKey }
+          });
+
+          result.apiTest = {
+            status: testResponse.status,
+            ok: testResponse.ok,
+            message: testResponse.ok ? 'API key is valid ✅' : 'API key is invalid ❌'
+          };
+        } catch (error) {
+          result.apiTest = {
+            error: error.message,
+            message: 'Failed to test API key ❌'
+          };
         }
       }
-    };
 
-    // Test the key with ElevenLabs API
-    const testKey = key1 || key2;
-    if (testKey) {
-      try {
-        const testResponse = await fetch('https://api.elevenlabs.io/v1/voices', {
-          headers: { 'xi-api-key': testKey }
-        });
-        
-        result.apiTest = {
-          status: testResponse.status,
-          ok: testResponse.ok,
-          message: testResponse.ok ? 'API key is valid ✅' : 'API key is invalid ❌'
-        };
-      } catch (error) {
-        result.apiTest = {
-          error: error.message,
-          message: 'Failed to test API key ❌'
-        };
-      }
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
     }
-
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Test WebSocket connection path
-app.get('/api/test-websocket-path', (req, res) => {
-  const appUrl = process.env.APP_URL || 'NOT SET';
-  const wsUrl = appUrl.replace('https://', 'wss://').replace('http://', 'ws://');
-  
-  res.json({
-    timestamp: new Date().toISOString(),
-    appUrl: appUrl,
-    websocketUrl: `${wsUrl}/api/call`,
-    expectedFormat: 'wss://your-domain.railway.app/api/call?callId=xxx&agentId=xxx&contactId=xxx',
-    registeredEndpoints: {
-      '/api/call': 'WebSocket handler for Twilio media streams ✅',
-      '/voice-stream': 'WebSocket handler for frontend voice chat ✅'
-    },
-    instructions: 'Make sure Twilio TwiML uses this exact WebSocket URL format'
   });
-});
 
-// Test complete voice pipeline
-app.post('/api/test-voice-pipeline', async (req, res) => {
-  try {
-    const { text, voiceId } = req.body;
-    
-    if (!text) {
-      return res.status(400).json({ error: 'Text parameter required' });
-    }
+  // Test WebSocket connection path
+  app.get('/api/test-websocket-path', (req, res) => {
+    const appUrl = process.env.APP_URL || 'NOT SET';
+    const wsUrl = appUrl.replace('https://', 'wss://').replace('http://', 'ws://');
 
-    const testVoiceId = voiceId || '21m00Tcm4TlvDq8ikWAM';
-    const apiKey = process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY;
-
-    if (!apiKey) {
-      return res.status(500).json({ 
-        error: 'ElevenLabs API key not configured',
-        fix: 'Set ELEVEN_LABS_API_KEY or ELEVENLABS_API_KEY in Railway environment variables'
-      });
-    }
-
-    console.log(`Testing TTS with key: ${apiKey.substring(0, 8)}...`);
-
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${testVoiceId}`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': apiKey,
-          'Content-Type': 'application/json',
-          'Accept': 'audio/basic'
-        },
-        body: JSON.stringify({
-          text: text,
-          model_id: 'eleven_turbo_v2_5',
-          output_format: 'ulaw_8000'
-        })
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return res.status(response.status).json({
-        error: 'ElevenLabs API error',
-        status: response.status,
-        details: errorText,
-        keyUsed: `${apiKey.substring(0, 8)}...`
-      });
-    }
-
-    const audioBuffer = await response.buffer();
-    
     res.json({
-      success: true,
-      audioSize: audioBuffer.length,
-      audioFormat: 'ulaw_8000',
-      voiceId: testVoiceId,
-      keyUsed: `${apiKey.substring(0, 8)}...`,
-      message: 'Voice pipeline is working correctly ✅'
+      timestamp: new Date().toISOString(),
+      appUrl: appUrl,
+      websocketUrl: `${wsUrl}/api/call`,
+      expectedFormat: 'wss://your-domain.railway.app/api/call?callId=xxx&agentId=xxx&contactId=xxx',
+      registeredEndpoints: {
+        '/api/call': 'WebSocket handler for Twilio media streams ✅',
+        '/voice-stream': 'WebSocket handler for frontend voice chat ✅'
+      },
+      instructions: 'Make sure Twilio TwiML uses this exact WebSocket URL format'
     });
+  });
 
-  } catch (error) {
-    res.status(500).json({ 
-      error: error.message,
-      stack: error.stack
-    });
-  }
-});
+  // Test complete voice pipeline
+  app.post('/api/test-voice-pipeline', async (req, res) => {
+    try {
+      const { text, voiceId } = req.body;
+
+      if (!text) {
+        return res.status(400).json({ error: 'Text parameter required' });
+      }
+
+      const testVoiceId = voiceId || '21m00Tcm4TlvDq8ikWAM';
+      const apiKey = process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY;
+
+      if (!apiKey) {
+        return res.status(500).json({
+          error: 'ElevenLabs API key not configured',
+          fix: 'Set ELEVEN_LABS_API_KEY or ELEVENLABS_API_KEY in Railway environment variables'
+        });
+      }
+
+      console.log(`Testing TTS with key: ${apiKey.substring(0, 8)}...`);
+
+      const response = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${testVoiceId}`,
+        {
+          method: 'POST',
+          headers: {
+            'xi-api-key': apiKey,
+            'Content-Type': 'application/json',
+            'Accept': 'audio/basic'
+          },
+          body: JSON.stringify({
+            text: text,
+            model_id: 'eleven_turbo_v2_5',
+            output_format: 'ulaw_8000'
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return res.status(response.status).json({
+          error: 'ElevenLabs API error',
+          status: response.status,
+          details: errorText,
+          keyUsed: `${apiKey.substring(0, 8)}...`
+        });
+      }
+
+      const audioBuffer = await response.buffer();
+
+      res.json({
+        success: true,
+        audioSize: audioBuffer.length,
+        audioFormat: 'ulaw_8000',
+        voiceId: testVoiceId,
+        keyUsed: `${apiKey.substring(0, 8)}...`,
+        message: 'Voice pipeline is working correctly ✅'
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        error: error.message,
+        stack: error.stack
+      });
+    }
+  });
   // Determine overall status
-  const allConfigured = 
+  const allConfigured =
     config.checks.deepgram.configured &&
     config.checks.gemini.configured &&
     config.checks.elevenlabs.configured &&
@@ -610,10 +610,10 @@ app.get('/api/test-voice-pipeline', async (req, res) => {
           })
         }
       );
-      
+
       results.tests.elevenlabs.apiWorking = testTTS.ok;
       results.tests.elevenlabs.apiStatus = testTTS.status;
-      
+
       if (!testTTS.ok) {
         const errorText = await testTTS.text();
         results.tests.elevenlabs.apiError = errorText.substring(0, 200);
@@ -624,7 +624,7 @@ app.get('/api/test-voice-pipeline', async (req, res) => {
   }
 
   // Overall assessment
-  const allPassed = 
+  const allPassed =
     results.tests.mediaStreamHandler.exists &&
     results.tests.deepgram.configured &&
     results.tests.gemini.configured &&
@@ -704,7 +704,7 @@ app.post('/api/admin/login', async (req, res) => {
 
     const admin = await adminService.login(email, password);
     await adminService.logActivity(admin.id, 'admin_login', null, 'Admin logged in', req.ip);
-    
+
     res.json({ success: true, admin });
   } catch (error) {
     console.error('Admin login error:', error);
@@ -729,7 +729,7 @@ app.get('/api/admin/users', async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 50;
     const search = req.query.search || '';
-    
+
     const result = await adminService.getAllUsers(page, limit, search);
     res.json({ success: true, ...result });
   } catch (error) {
@@ -755,24 +755,24 @@ app.post('/api/admin/users/:userId/limits', async (req, res) => {
   try {
     const { userId } = req.params;
     const { serviceName, monthlyLimit, dailyLimit, isEnabled, adminId } = req.body;
-    
+
     if (!serviceName || !['elevenlabs', 'gemini', 'deepgram'].includes(serviceName)) {
       return res.status(400).json({ success: false, message: 'Invalid service name' });
     }
 
     const result = await adminService.setServiceLimit(
-      userId, 
-      serviceName, 
-      monthlyLimit, 
-      dailyLimit, 
+      userId,
+      serviceName,
+      monthlyLimit,
+      dailyLimit,
       isEnabled
     );
 
     await adminService.logActivity(
-      adminId, 
-      'set_service_limit', 
-      userId, 
-      `Set ${serviceName} limit: monthly=${monthlyLimit}, daily=${dailyLimit}`, 
+      adminId,
+      'set_service_limit',
+      userId,
+      `Set ${serviceName} limit: monthly=${monthlyLimit}, daily=${dailyLimit}`,
       req.ip
     );
 
@@ -799,20 +799,20 @@ app.get('/api/admin/users/:userId/limits', async (req, res) => {
 app.post('/api/admin/billing', async (req, res) => {
   try {
     const { userId, periodStart, periodEnd, usageData, platformFee, adminId } = req.body;
-    
+
     const result = await adminService.createBillingRecord(
-      userId, 
-      periodStart, 
-      periodEnd, 
-      usageData, 
+      userId,
+      periodStart,
+      periodEnd,
+      usageData,
       platformFee
     );
 
     await adminService.logActivity(
-      adminId, 
-      'create_billing', 
-      userId, 
-      `Created billing record for period ${periodStart} to ${periodEnd}`, 
+      adminId,
+      'create_billing',
+      userId,
+      `Created billing record for period ${periodStart} to ${periodEnd}`,
       req.ip
     );
 
@@ -828,7 +828,7 @@ app.patch('/api/admin/billing/:billingId', async (req, res) => {
   try {
     const { billingId } = req.params;
     const { status, notes, adminId } = req.body;
-    
+
     if (!['pending', 'paid', 'overdue', 'cancelled'].includes(status)) {
       return res.status(400).json({ success: false, message: 'Invalid billing status' });
     }
@@ -836,10 +836,10 @@ app.patch('/api/admin/billing/:billingId', async (req, res) => {
     const result = await adminService.updateBillingStatus(billingId, status, notes);
 
     await adminService.logActivity(
-      adminId, 
-      'update_billing_status', 
-      null, 
-      `Updated billing ${billingId} status to ${status}`, 
+      adminId,
+      'update_billing_status',
+      null,
+      `Updated billing ${billingId} status to ${status}`,
       req.ip
     );
 
@@ -887,51 +887,51 @@ app.post('/api/campaigns/:id/set-google-sheet', async (req, res) => {
   try {
     const { id } = req.params;
     const { userId, googleSheetUrl } = req.body;
-    
+
     if (!userId || !googleSheetUrl) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'User ID and Google Sheet URL are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and Google Sheet URL are required'
       });
     }
-    
+
     // Extract spreadsheet ID
     const spreadsheetId = googleSheetsService.extractSpreadsheetId(googleSheetUrl);
-    
+
     if (!spreadsheetId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid Google Sheets URL' 
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid Google Sheets URL'
       });
     }
-    
+
     // Validate spreadsheet access
     const validation = await googleSheetsService.validateSpreadsheet(spreadsheetId);
-    
+
     if (!validation.valid) {
-      return res.status(400).json({ 
-        success: false, 
-        message: `Cannot access spreadsheet: ${validation.error}. Make sure you've shared it with the service account email.` 
+      return res.status(400).json({
+        success: false,
+        message: `Cannot access spreadsheet: ${validation.error}. Make sure you've shared it with the service account email.`
       });
     }
-    
+
     // Initialize headers in the sheet
     await googleSheetsService.initializeHeaders(spreadsheetId, 'Call Logs');
-    
+
     // Update campaign
     await mysqlPool.execute(
       'UPDATE campaigns SET google_sheet_url = ? WHERE id = ? AND user_id = ?',
       [googleSheetUrl, id, userId]
     );
-    
+
     const updatedCampaign = await campaignService.getCampaign(id, userId);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       data: updatedCampaign,
-      message: `Connected to spreadsheet: ${validation.title}` 
+      message: `Connected to spreadsheet: ${validation.title}`
     });
-    
+
   } catch (error) {
     console.error('Error setting Google Sheet URL:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -942,38 +942,38 @@ app.post('/api/campaigns/:id/set-google-sheet', async (req, res) => {
 app.post('/api/google-sheets/test', async (req, res) => {
   try {
     const { googleSheetUrl } = req.body;
-    
+
     if (!googleSheetUrl) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Google Sheet URL is required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Google Sheet URL is required'
       });
     }
-    
+
     const spreadsheetId = googleSheetsService.extractSpreadsheetId(googleSheetUrl);
-    
+
     if (!spreadsheetId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid Google Sheets URL' 
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid Google Sheets URL'
       });
     }
-    
+
     const validation = await googleSheetsService.validateSpreadsheet(spreadsheetId);
-    
+
     if (validation.valid) {
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         message: `Successfully connected to: ${validation.title}`,
         spreadsheetTitle: validation.title
       });
     } else {
-      res.status(400).json({ 
-        success: false, 
-        message: `Cannot access spreadsheet: ${validation.error}` 
+      res.status(400).json({
+        success: false,
+        message: `Cannot access spreadsheet: ${validation.error}`
       });
     }
-    
+
   } catch (error) {
     console.error('Error testing Google Sheets:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -984,45 +984,45 @@ app.post('/api/google-sheets/test', async (req, res) => {
 app.post('/api/google-sheets/log-call', async (req, res) => {
   try {
     const { campaignId, recordId, userId } = req.body;
-    
+
     if (!campaignId || !recordId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Campaign ID and Record ID are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Campaign ID and Record ID are required'
       });
     }
-    
+
     // Get campaign
     const campaign = await campaignService.getCampaign(campaignId, userId);
     if (!campaign || !campaign.google_sheet_url) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Campaign does not have Google Sheets configured' 
+      return res.status(400).json({
+        success: false,
+        message: 'Campaign does not have Google Sheets configured'
       });
     }
-    
+
     // Get record details
     const [records] = await mysqlPool.execute(
       'SELECT * FROM campaign_records WHERE id = ? AND campaign_id = ?',
       [recordId, campaignId]
     );
-    
+
     if (records.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Record not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Record not found'
       });
     }
-    
+
     const record = records[0];
-    
+
     // Get agent details
     let agentName = 'Unknown';
     if (campaign.agent_id) {
       const agent = await agentService.getAgentById(userId, campaign.agent_id);
       if (agent) agentName = agent.name;
     }
-    
+
     // Log to Google Sheets
     const spreadsheetId = googleSheetsService.extractSpreadsheetId(campaign.google_sheet_url);
     const result = await googleSheetsService.logCallData(spreadsheetId, {
@@ -1036,9 +1036,9 @@ app.post('/api/google-sheets/log-call', async (req, res) => {
       retries: record.retries || 0,
       metadata: record.metadata ? JSON.parse(record.metadata) : {}
     });
-    
+
     res.json(result);
-    
+
   } catch (error) {
     console.error('Error logging call to Google Sheets:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -1052,59 +1052,59 @@ app.post('/api/twilio/status', async (req, res) => {
   try {
     const { callId } = req.query;
     const { CallSid, CallStatus, CallDuration, RecordingUrl } = req.body;
-    
+
     console.log('Twilio status callback:', {
       callId,
       callSid: CallSid,
       status: CallStatus,
       duration: CallDuration
     });
-    
+
     if (callId && CallSid) {
       const database = require('./config/database.js').default;
-      
+
       // Update call in database
       const updateData = {
         status: CallStatus,
         call_sid: CallSid
       };
-      
+
       if (CallDuration) {
         updateData.duration = parseInt(CallDuration);
       }
-      
+
       if (RecordingUrl) {
         updateData.recording_url = RecordingUrl;
       }
-      
+
       if (CallStatus === 'completed' || CallStatus === 'failed' || CallStatus === 'busy' || CallStatus === 'no-answer') {
         updateData.ended_at = new Date();
       }
-      
+
       const fields = Object.keys(updateData).map(key => `${key} = ?`).join(', ');
       const values = Object.values(updateData);
       values.push(callId);
-      
+
       await database.execute(
         `UPDATE calls SET ${fields} WHERE id = ?`,
         values
       );
-      
+
       // Also update campaign record and Google Sheets
       const [callRecords] = await database.execute(
         'SELECT c.*, cr.campaign_id, camp.google_sheet_url FROM calls c LEFT JOIN campaign_records cr ON c.call_sid = cr.call_sid LEFT JOIN campaigns camp ON cr.campaign_id = camp.id WHERE c.id = ?',
         [callId]
       );
-      
+
       if (callRecords.length > 0 && callRecords[0].campaign_id) {
         const callRecord = callRecords[0];
-        
+
         // Update campaign record
         await database.execute(
           'UPDATE campaign_records SET call_status = ?, duration = ?, recording_url = ? WHERE call_sid = ?',
           [CallStatus, CallDuration || 0, RecordingUrl || null, CallSid]
         );
-        
+
         // Update Google Sheets if configured
         if (callRecord.google_sheet_url) {
           const spreadsheetId = googleSheetsService.extractSpreadsheetId(callRecord.google_sheet_url);
@@ -1118,12 +1118,12 @@ app.post('/api/twilio/status', async (req, res) => {
           }
         }
       }
-      
+
       console.log('Call status updated in database and Google Sheets:', callId, CallStatus);
     }
-    
+
     res.status(200).send('OK');
-    
+
   } catch (error) {
     console.error('Error processing Twilio status callback:', error);
     res.status(200).send('OK');
@@ -1133,15 +1133,15 @@ app.post('/api/twilio/status', async (req, res) => {
 // Update the processCampaignCalls function to include Google Sheets logging
 async function processCampaignCalls(campaignId, userId, campaign, records) {
   console.log(`Processing campaign ${campaignId} with ${records.length} records`);
-  
+
   const verifiedNumbers = await twilioService.getVerifiedNumbers(userId);
   const twilioNumber = verifiedNumbers.find(num => num.phoneNumber === campaign.callerPhone);
-  
+
   if (!twilioNumber) {
     console.error('Twilio number not found:', campaign.callerPhone);
     return;
   }
-  
+
   // Get agent details for logging
   let agentName = 'Unknown';
   if (campaign.agentId) {
@@ -1152,13 +1152,13 @@ async function processCampaignCalls(campaignId, userId, campaign, records) {
       console.error('Error fetching agent:', error);
     }
   }
-  
+
   // Get spreadsheet ID if configured
   let spreadsheetId = null;
   if (campaign.google_sheet_url) {
     spreadsheetId = googleSheetsService.extractSpreadsheetId(campaign.google_sheet_url);
   }
-  
+
   for (const record of records) {
     try {
       const currentCampaign = await campaignService.getCampaign(campaignId, userId);
@@ -1166,13 +1166,13 @@ async function processCampaignCalls(campaignId, userId, campaign, records) {
         console.log('Campaign stopped, exiting...');
         break;
       }
-      
+
       await campaignService.updateRecordStatus(record.id, 'in-progress');
-      
+
       const callId = uuidv4();
       const appUrl = process.env.APP_URL;
       const cleanAppUrl = appUrl.replace(/\/$/, '');
-      
+
       const call = await twilioService.createCall({
         userId: userId,
         twilioNumberId: twilioNumber.id,
@@ -1181,9 +1181,9 @@ async function processCampaignCalls(campaignId, userId, campaign, records) {
         callId: callId,
         appUrl: cleanAppUrl
       });
-      
+
       await campaignService.updateRecordCallSid(record.id, call.sid);
-      
+
       // Log to Google Sheets immediately after call is initiated
       if (spreadsheetId) {
         await googleSheetsService.logCallData(spreadsheetId, {
@@ -1199,16 +1199,16 @@ async function processCampaignCalls(campaignId, userId, campaign, records) {
           metadata: {}
         });
       }
-      
+
       console.log(`Call initiated for ${record.phone}: ${call.sid}`);
-      
+
       await new Promise(resolve => setTimeout(resolve, 30000));
-      
+
     } catch (error) {
       console.error(`Error calling ${record.phone}:`, error);
       await campaignService.updateRecordStatus(record.id, 'failed');
       await campaignService.incrementRecordRetry(record.id);
-      
+
       // Log failure to Google Sheets
       if (spreadsheetId) {
         await googleSheetsService.logCallData(spreadsheetId, {
@@ -1226,7 +1226,7 @@ async function processCampaignCalls(campaignId, userId, campaign, records) {
       }
     }
   }
-  
+
   console.log(`Campaign ${campaignId} processing complete`);
 }
 // Save or update an API key for a user
@@ -1273,8 +1273,59 @@ app.post('/api/validate-api-key', async (req, res) => {
   }
 });
 
+// Generic voices endpoint - fetch all available voices (ElevenLabs + Sarvam)
+app.get('/api/voices/list', async (req, res) => {
+  try {
+    const voices = {
+      'eleven-labs': [],
+      'sarvam-ai': []
+    };
+
+    // Fetch ElevenLabs voices
+    try {
+      const apiKey = process.env.ELEVEN_LABS_API_KEY || process.env.VITE_ELEVEN_LABS_API_KEY;
+      if (apiKey) {
+        const response = await nodeFetch('https://api.elevenlabs.io/v1/voices', {
+          method: 'GET',
+          headers: { 'xi-api-key': apiKey }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          voices['eleven-labs'] = data.voices.map(v => ({
+            id: v.voice_id,
+            name: v.name,
+            provider: 'eleven-labs'
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching ElevenLabs voices:', err);
+    }
+
+    // Add Sarvam voices (Static list as no list API exists yet)
+    // These are the standard voices from Sarvam
+    voices['sarvam-ai'] = [
+      { id: 'sarvam-meera', name: 'Meera (Hindi/English)', provider: 'sarvam-ai' },
+      { id: 'sarvam-pavithra', name: 'Pavithra (Hindi/English)', provider: 'sarvam-ai' },
+      { id: 'sarvam-maitreyi', name: 'Maitreyi (Hindi/English)', provider: 'sarvam-ai' },
+      { id: 'sarvam-kabir', name: 'Kabir (Hindi/English)', provider: 'sarvam-ai' },
+      { id: 'sarvam-amartya', name: 'Amartya (Marathi)', provider: 'sarvam-ai' },
+      { id: 'sarvam-chiarun', name: 'Chiarun (Tamil)', provider: 'sarvam-ai' }
+    ];
+
+    res.json({
+      success: true,
+      voices: voices
+    });
+  } catch (error) {
+    console.error('Error fetching voices:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // ElevenLabs voices endpoint - fetch all voices from ElevenLabs API
-app.get('/api/voices/elevenlabs', async (req, res) => {
+app.get('/api/voices/elevenlabs/list', async (req, res) => {
   try {
     // Get ElevenLabs API key from environment variables
     const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -1297,18 +1348,18 @@ app.get('/api/voices/elevenlabs', async (req, res) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('ElevenLabs API error:', response.status, errorText);
-      
+
       // Check if the response is HTML (error page)
       if (errorText.startsWith('<!DOCTYPE') || errorText.includes('<html')) {
-        return res.status(500).json({ 
-          success: false, 
-          message: 'ElevenLabs API returned an HTML error page. Check API key and network connectivity.' 
+        return res.status(500).json({
+          success: false,
+          message: 'ElevenLabs API returned an HTML error page. Check API key and network connectivity.'
         });
       }
-      
-      return res.status(response.status).json({ 
-        success: false, 
-        message: `ElevenLabs API error: ${response.statusText} - ${errorText}` 
+
+      return res.status(response.status).json({
+        success: false,
+        message: `ElevenLabs API error: ${response.statusText} - ${errorText}`
       });
     }
 
@@ -1316,18 +1367,18 @@ app.get('/api/voices/elevenlabs', async (req, res) => {
     if (!contentType || !contentType.includes('application/json')) {
       const errorText = await response.text();
       console.error('ElevenLabs API returned non-JSON response:', errorText.substring(0, 200));
-      return res.status(500).json({ 
-        success: false, 
-        message: 'ElevenLabs API returned invalid response format. Expected JSON.' 
+      return res.status(500).json({
+        success: false,
+        message: 'ElevenLabs API returned invalid response format. Expected JSON.'
       });
     }
 
     const data = await response.json();
-    
+
     // Return voices with full metadata
-    res.json({ 
-      success: true, 
-      voices: data.voices 
+    res.json({
+      success: true,
+      voices: data.voices
     });
   } catch (error) {
     console.error('Error fetching ElevenLabs voices:', error);
@@ -1414,21 +1465,21 @@ app.get('/api/credits/deepgram/:userId', async (req, res) => {
     if (!projectsResponse.ok) {
       const errorText = await projectsResponse.text();
       console.error(`Deepgram API error (projects): ${projectsResponse.status} - ${projectsResponse.statusText}`, errorText);
-      
+
       // Return 0 credits if API key is invalid or endpoint returns error
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         credits: 0,
         message: 'Deepgram API key may be invalid or expired'
       });
     }
 
     const projectsData = await projectsResponse.json();
-    
+
     // Get the first project (usually there's only one)
     if (!projectsData.projects || projectsData.projects.length === 0) {
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         credits: 0,
         message: 'No Deepgram projects found'
       });
@@ -1448,21 +1499,21 @@ app.get('/api/credits/deepgram/:userId', async (req, res) => {
     if (!balancesResponse.ok) {
       const errorText = await balancesResponse.text();
       console.error(`Deepgram API error (balances): ${balancesResponse.status} - ${balancesResponse.statusText}`, errorText);
-      
-      return res.json({ 
-        success: true, 
+
+      return res.json({
+        success: true,
         credits: 0,
         message: 'Unable to fetch balance'
       });
     }
 
     const balancesData = await balancesResponse.json();
-    
+
     // Sum all balances (usually just one)
     const totalBalance = balancesData.balances && balancesData.balances.length > 0
       ? balancesData.balances.reduce((sum, balance) => sum + (balance.amount || 0), 0)
       : 0;
-    
+
     res.json({ success: true, credits: totalBalance });
   } catch (error) {
     console.error('Error fetching Deepgram credits:', error);
@@ -1620,10 +1671,10 @@ app.post('/api/validate-twilio-credentials', async (req, res) => {
     if (!accountSid || !authToken) {
       return res.status(400).json({ success: false, message: 'Account SID and Auth Token are required' });
     }
-    
+
     const client = twilio(accountSid, authToken);
     await client.api.accounts(accountSid).fetch();
-    
+
     res.json({ success: true, message: 'Credentials are valid' });
   } catch (error) {
     console.error('Error validating Twilio credentials:', error);
@@ -1638,12 +1689,12 @@ app.post('/api/fetch-twilio-numbers', async (req, res) => {
     if (!accountSid || !authToken) {
       return res.status(400).json({ success: false, message: 'Account SID and Auth Token are required' });
     }
-    
+
     const client = twilio(accountSid, authToken);
-    
+
     // Fetch all incoming phone numbers from Twilio account
     const incomingNumbers = await client.incomingPhoneNumbers.list({ limit: 100 });
-    
+
     // Format the response
     const formattedNumbers = incomingNumbers.map(num => ({
       phoneNumber: num.phoneNumber,
@@ -1655,7 +1706,7 @@ app.post('/api/fetch-twilio-numbers', async (req, res) => {
         mms: num.capabilities?.mms || false
       }
     }));
-    
+
     res.json({ success: true, data: formattedNumbers });
   } catch (error) {
     console.error('Error fetching Twilio numbers:', error);
@@ -1670,9 +1721,9 @@ app.post('/api/twilio/fetch-account-numbers', async (req, res) => {
     if (!userId || !accountSid) {
       return res.status(400).json({ success: false, message: 'User ID and Account SID are required' });
     }
-    
+
     const phoneNumbers = await twilioService.fetchPhoneNumbersFromUserAccount(userId, accountSid);
-    
+
     res.json({ success: true, data: phoneNumbers });
   } catch (error) {
     console.error('Error fetching phone numbers from user account:', error);
@@ -1687,9 +1738,9 @@ app.post('/api/twilio/add-account-number', async (req, res) => {
     if (!userId || !accountSid || !phoneNumber || !region) {
       return res.status(400).json({ success: false, message: 'User ID, Account SID, phone number, and region are required' });
     }
-    
+
     const result = await twilioService.addPhoneNumberFromAccount(userId, accountSid, phoneNumber, region);
-    
+
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('Error adding phone number from account:', error);
@@ -1703,7 +1754,7 @@ app.get('/api/twilio/calls/:userId', async (req, res) => {
     if (!userId) {
       return res.status(400).json({ success: false, message: 'User ID is required' });
     }
-    
+
     // For now, return empty array - in production, fetch from database
     res.json({ success: true, data: [] });
   } catch (error) {
@@ -1719,7 +1770,7 @@ app.get('/api/twilio/phone-numbers/:userId', async (req, res) => {
     if (!userId) {
       return res.status(400).json({ success: false, message: 'User ID is required' });
     }
-    
+
     // For now, return empty array - in production, fetch from database
     res.json({ success: true, data: [] });
   } catch (error) {
@@ -1826,97 +1877,97 @@ app.post('/call/start', async (req, res) => {
 app.post('/api/twilio/make-call', async (req, res) => {
   try {
     const { userId, from, to, agentId } = req.body;
-    
-    if (!userId) {  
+
+    if (!userId) {
       return res.status(400).json({ success: false, message: 'User ID is required' });
     }
-    
+
     // Validate user ID format (UUID)
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
       return res.status(400).json({ success: false, message: 'User ID must be a valid UUID' });
     }
-    
+
     if (!from) {
       return res.status(400).json({ success: false, message: 'From number is required' });
     }
-    
+
     if (!to) {
       return res.status(400).json({ success: false, message: 'To number is required' });
     }
-    
+
     if (!agentId) {
       return res.status(400).json({ success: false, message: 'Agent ID is required' });
     }
-    
+
     // Get all verified Twilio numbers for this user
     const userTwilioNumbers = await twilioService.getVerifiedNumbers(userId);
-    
+
     // Find the Twilio number record by ID (from is a UUID from user_twilio_numbers.id)
     let twilioNumber = userTwilioNumbers.find(num => num.id === from);
-    
+
     // If not found by ID, try finding by phone number (fallback)
     if (!twilioNumber) {
       twilioNumber = userTwilioNumbers.find(num => num.phoneNumber === from);
     }
-    
+
     if (!twilioNumber) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'From number must be a verified Twilio number for this user' 
+      return res.status(400).json({
+        success: false,
+        message: 'From number must be a verified Twilio number for this user'
       });
     }
-    
+
     // Extract the actual phone number from the twilioNumber object
     const fromPhoneNumber = twilioNumber.phoneNumber;
-    
+
     // Validate phone number formats
     if (!/^\+?[1-9]\d{1,14}$/.test(fromPhoneNumber)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'From number must be a valid Twilio number in E.164 format (e.g., +1234567890)' 
+      return res.status(400).json({
+        success: false,
+        message: 'From number must be a valid Twilio number in E.164 format (e.g., +1234567890)'
       });
     }
-    
+
     if (!/^\+?[1-9]\d{1,14}$/.test(to)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'To number must be in E.164 format (e.g., +1234567890)' 
+      return res.status(400).json({
+        success: false,
+        message: 'To number must be in E.164 format (e.g., +1234567890)'
       });
     }
-    
+
     // Generate a unique call ID
     const callId = require('uuid').v4();
-    
-   // Get app URL for callbacks - MUST be a public URL for Twilio
-const appUrl = process.env.APP_URL;
 
-if (!appUrl) {
-  console.error('ERROR: APP_URL environment variable is not set!');
-  return res.status(500).json({ 
-    success: false, 
-    message: 'Server configuration error: APP_URL is not configured. Please contact administrator.' 
-  });
-}
+    // Get app URL for callbacks - MUST be a public URL for Twilio
+    const appUrl = process.env.APP_URL;
 
-if (appUrl.includes('localhost') || appUrl.includes('127.0.0.1')) {
-  console.error('ERROR: APP_URL is set to localhost, but Twilio requires a public URL!');
-  return res.status(500).json({ 
-    success: false, 
-    message: 'Server configuration error: APP_URL must be a public URL, not localhost. Please use ngrok or deploy to Railway.' 
-  });
-}
+    if (!appUrl) {
+      console.error('ERROR: APP_URL environment variable is not set!');
+      return res.status(500).json({
+        success: false,
+        message: 'Server configuration error: APP_URL is not configured. Please contact administrator.'
+      });
+    }
 
-const cleanAppUrl = appUrl.replace(/\/$/, '');
-console.log('Using APP_URL for Twilio webhooks:', cleanAppUrl);
-    
+    if (appUrl.includes('localhost') || appUrl.includes('127.0.0.1')) {
+      console.error('ERROR: APP_URL is set to localhost, but Twilio requires a public URL!');
+      return res.status(500).json({
+        success: false,
+        message: 'Server configuration error: APP_URL must be a public URL, not localhost. Please use ngrok or deploy to Railway.'
+      });
+    }
+
+    const cleanAppUrl = appUrl.replace(/\/$/, '');
+    console.log('Using APP_URL for Twilio webhooks:', cleanAppUrl);
+
     // Get or create phone_numbers entry for the from number
     const database = require('./config/database.js').default;
-    
+
     const [phoneRows] = await database.execute(
       'SELECT id FROM phone_numbers WHERE user_id = ? AND phone_number = ?',
       [userId, fromPhoneNumber]
     );
-    
+
     let phoneNumberId;
     if (phoneRows.length > 0) {
       phoneNumberId = phoneRows[0].id;
@@ -1930,15 +1981,15 @@ console.log('Using APP_URL for Twilio webhooks:', cleanAppUrl);
         [phoneNumberId, userId, fromPhoneNumber]
       );
     }
-    
+
     // Create call record in database with the ACTUAL PHONE NUMBER
     await database.execute(
       `INSERT INTO calls 
       (id, phone_number_id, user_id, agent_id, from_number, to_number, status, twilio_number_id, started_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'initiated', ?, NOW())`, 
+      VALUES (?, ?, ?, ?, ?, ?, 'initiated', ?, NOW())`,
       [callId, phoneNumberId, userId, agentId, fromPhoneNumber, to, twilioNumber.id]
     );
-    
+
     // Create the actual Twilio call
     // twilioService.createCall will use twilioNumber.phoneNumber internally
     const call = await twilioService.createCall({
@@ -1949,16 +2000,16 @@ console.log('Using APP_URL for Twilio webhooks:', cleanAppUrl);
       callId: callId,
       appUrl: cleanAppUrl
     });
-    
+
     // Update call record with Twilio call SID
     await database.execute(
-      'UPDATE calls SET call_sid = ? WHERE id = ?', 
+      'UPDATE calls SET call_sid = ? WHERE id = ?',
       [call.sid, callId]
     );
-    
+
     // Return success response
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: {
         id: callId,
         userId,
@@ -1972,7 +2023,7 @@ console.log('Using APP_URL for Twilio webhooks:', cleanAppUrl);
         duration: 0
       }
     });
-    
+
   } catch (error) {
     console.error('Error making Twilio call:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -1986,7 +2037,7 @@ app.post('/api/add-twilio-number', async (req, res) => {
     if (!userId || !phoneNumber || !region || !accountSid || !authToken) {
       return res.status(400).json({ success: false, message: 'All fields are required' });
     }
-    
+
     // Use TwilioService to add the number and store in database
     const result = await twilioService.addTwilioNumber(
       userId,
@@ -1995,7 +2046,7 @@ app.post('/api/add-twilio-number', async (req, res) => {
       accountSid,
       authToken
     );
-    
+
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('Error adding Twilio number:', error);
@@ -2011,13 +2062,13 @@ app.get('/api/twilio/accounts', async (req, res) => {
     if (!userId) {
       return res.status(400).json({ success: false, message: 'User ID is required' });
     }
-    
+
     const database = mysqlPool;
     const [rows] = await database.execute(
       'SELECT id, name, account_sid, auth_token, created_at FROM user_twilio_accounts WHERE user_id = ? ORDER BY created_at DESC',
       [userId]
     );
-    
+
     // Decrypt auth tokens before sending to frontend
     const accounts = rows.map(row => ({
       id: row.id,
@@ -2026,7 +2077,7 @@ app.get('/api/twilio/accounts', async (req, res) => {
       authToken: row.auth_token, // In a real implementation, you would decrypt this
       createdAt: row.created_at
     }));
-    
+
     res.json({ success: true, data: accounts });
   } catch (error) {
     console.error('Error fetching Twilio accounts:', error);
@@ -2041,16 +2092,16 @@ app.post('/api/twilio/accounts', async (req, res) => {
     if (!userId || !name || !accountSid || !authToken) {
       return res.status(400).json({ success: false, message: 'All fields are required' });
     }
-    
+
     const database = mysqlPool;
     const accountId = require('uuid').v4();
-    
+
     // In a real implementation, you would encrypt the auth token before storing
     await database.execute(
       'INSERT INTO user_twilio_accounts (id, user_id, name, account_sid, auth_token, created_at) VALUES (?, ?, ?, ?, ?, NOW())',
       [accountId, userId, name, accountSid, authToken]
     );
-    
+
     res.json({ success: true, data: { id: accountId } });
   } catch (error) {
     console.error('Error adding Twilio account:', error);
@@ -2063,17 +2114,17 @@ app.delete('/api/twilio/accounts/:accountId', async (req, res) => {
   try {
     const { accountId } = req.params;
     const { userId } = req.query;
-    
+
     if (!userId) {
       return res.status(400).json({ success: false, message: 'User ID is required' });
     }
-    
+
     const database = mysqlPool;
     await database.execute(
       'DELETE FROM user_twilio_accounts WHERE id = ? AND user_id = ?',
       [accountId, userId]
     );
-    
+
     res.json({ success: true, message: 'Account removed successfully' });
   } catch (error) {
     console.error('Error deleting Twilio account:', error);
@@ -2124,22 +2175,22 @@ app.post('/api/twilio/voice', async (req, res) => {
     // ✅ Create proper TwiML with Twilio SDK
     const VoiceResponse = require('twilio').twiml.VoiceResponse;
     const response = new VoiceResponse();
-    
+
     // Start with a greeting so user knows call connected
     response.say({
       voice: 'Polly.Joanna'
     }, 'Please wait while I connect you to an agent.');
-    
+
     // Small pause
     response.pause({ length: 1 });
-    
+
     // Create Connect verb with Stream
     const connect = response.connect();
     const stream = connect.stream({
       url: streamUrl,
       name: `stream_${actualCallId}`
     });
-    
+
     // ✅ CRITICAL: Add parameters to stream
     stream.parameter({ name: 'callId', value: actualCallId });
     stream.parameter({ name: 'agentId', value: agentId });
@@ -2163,12 +2214,12 @@ app.post('/api/twilio/voice', async (req, res) => {
     }
   } catch (error) {
     console.error('❌ Voice webhook error:', error);
-    
+
     const VoiceResponse = require('twilio').twiml.VoiceResponse;
     const response = new VoiceResponse();
     response.say("Technical error occurred.");
     response.hangup();
-    
+
     res.type('text/xml');
     res.send(response.toString());
   }
@@ -2290,7 +2341,7 @@ app.put('/api/agents/:id', async (req, res) => {
     // Extract agent data (all properties except userId)
     const agentData = { ...req.body };
     delete agentData.userId;
-    
+
     const updatedAgent = await agentService.updateAgent(userId, id, agentData);
     res.json({ success: true, data: updatedAgent });
   } catch (error) {
@@ -2453,7 +2504,7 @@ app.post('/api/tools/google-sheets/append', async (req, res) => {
     // In a real implementation, you would use the Google Sheets API here
     // For now, we'll just log the data and return success
     console.log('Google Sheets append request:', { spreadsheetId, data, sheetName });
-    
+
     res.json({ success: true, message: 'Data appended successfully' });
   } catch (error) {
     console.error('Error appending data to Google Sheets:', error);
@@ -2499,12 +2550,12 @@ app.get('/api/voices/elevenlabs/list', async (req, res) => {
   try {
     // Get ElevenLabs API key from environment variables
     const apiKey = process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY;
-    
+
     if (!apiKey) {
       console.error('❌ ElevenLabs API key not configured on server');
-      return res.status(500).json({ 
-        success: false, 
-        message: 'ElevenLabs API key not configured on server. Please add ELEVEN_LABS_API_KEY to environment variables.' 
+      return res.status(500).json({
+        success: false,
+        message: 'ElevenLabs API key not configured on server. Please add ELEVEN_LABS_API_KEY to environment variables.'
       });
     }
 
@@ -2522,18 +2573,18 @@ app.get('/api/voices/elevenlabs/list', async (req, res) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ ElevenLabs API error:', response.status, errorText);
-      
+
       // Check if the response is HTML (error page)
       if (errorText.startsWith('<!DOCTYPE') || errorText.includes('<html')) {
-        return res.status(500).json({ 
-          success: false, 
-          message: 'ElevenLabs API returned an HTML error page. Check API key and network connectivity.' 
+        return res.status(500).json({
+          success: false,
+          message: 'ElevenLabs API returned an HTML error page. Check API key and network connectivity.'
         });
       }
-      
-      return res.status(response.status).json({ 
-        success: false, 
-        message: `ElevenLabs API error: ${response.statusText} - ${errorText}` 
+
+      return res.status(response.status).json({
+        success: false,
+        message: `ElevenLabs API error: ${response.statusText} - ${errorText}`
       });
     }
 
@@ -2541,19 +2592,19 @@ app.get('/api/voices/elevenlabs/list', async (req, res) => {
     if (!contentType || !contentType.includes('application/json')) {
       const errorText = await response.text();
       console.error('❌ ElevenLabs API returned non-JSON response:', errorText.substring(0, 200));
-      return res.status(500).json({ 
-        success: false, 
-        message: 'ElevenLabs API returned invalid response format. Expected JSON.' 
+      return res.status(500).json({
+        success: false,
+        message: 'ElevenLabs API returned invalid response format. Expected JSON.'
       });
     }
 
     const data = await response.json();
-    
+
     console.log(`✅ Successfully fetched ${data.voices?.length || 0} voices from ElevenLabs`);
-    
+
     // Return voices with the voice_id as the id field (not mapped)
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       voices: data.voices.map(voice => ({
         voice_id: voice.voice_id,  // Keep the actual ElevenLabs voice ID
         name: voice.name,
@@ -2564,9 +2615,9 @@ app.get('/api/voices/elevenlabs/list', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error fetching ElevenLabs voices:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: `Error fetching ElevenLabs voices: ${error.message}` 
+    res.status(500).json({
+      success: false,
+      message: `Error fetching ElevenLabs voices: ${error.message}`
     });
   }
 });
@@ -2582,9 +2633,9 @@ app.post('/api/voices/elevenlabs/preview', async (req, res) => {
     // In a real implementation, you would call ElevenLabs API here
     // This is a valid 1-second silent WAV audio file encoded in base64
     const silentAudioBase64 = 'UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAAB9AAACABAAZGF0YQIAAAAAAA==';
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       audioData: silentAudioBase64,
       message: 'Voice preview generated successfully'
     });
@@ -2626,7 +2677,7 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
   const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
   const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
   const elevenLabsApiKey = process.env.ELEVEN_LABS_API_KEY || process.env.VITE_ELEVEN_LABS_API_KEY;
-  
+
   // Determine if this is a Twilio call or frontend chat
   const callId = req.query?.callId;
   const agentId = req.query?.agentId;
@@ -2635,24 +2686,24 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
   const userId = req.query?.userId; // ✅ ADDED - Get userId from query params
   const isTwilioCall = !!(callId && agentId);
   const isFrontendChat = !!(voiceId && !callId);
-  
+
   console.log('Connection type:', isTwilioCall ? 'Twilio Call' : isFrontendChat ? 'Frontend Chat' : 'Unknown');
   console.log('Query params:', { voiceId, agentId, callId, userId, identity: identity ? 'present' : 'missing' });
   console.log('Call ID:', callId);
   console.log('Agent ID:', agentId);
   console.log('User ID:', userId);
 
-// Map voice names to ElevenLabs voice IDs
- 
+  // Map voice names to ElevenLabs voice IDs
+
   let agentVoiceId = voiceId || '21m00Tcm4TlvDq8ikWAM'; // Default to Rachel if not provided
   // For frontend chat, use identity from query params if provided
   let agentIdentity = identity || 'You are a helpful AI assistant.';
   let agentName = 'AI Assistant';
   console.log('Voice identifier:', voiceIdentifier);
   console.log('Using ElevenLabs voice ID:', agentVoiceId);
-  
+
   // For Twilio calls, fetch agent voice and identity from database if agentId is provided
-// For Twilio calls, fetch agent voice and identity from database if agentId is provided
+  // For Twilio calls, fetch agent voice and identity from database if agentId is provided
   if (agentId) {
     agentService.getAgentById('system', agentId).then(agent => {
       if (agent) {
@@ -2676,7 +2727,7 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
       console.error('Error fetching agent:', error);
     });
   }
-  
+
   if (!deepgramApiKey) {
     console.warn('WARNING: DEEPGRAM_API_KEY is not configured. Speech-to-text will not work.');
   }
@@ -2686,18 +2737,18 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
   if (!elevenLabsApiKey) {
     console.warn('WARNING: ELEVEN_LABS_API_KEY is not configured. Text-to-speech will not work.');
   }
-  
+
   // Handle incoming audio and text from the client
   ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message);
-      
+
       if (data.event === 'audio') {
         // Client is sending audio data
         audioChunksReceived++;
         audioBuffer.push(data.data);
         console.log('Received audio chunk', audioChunksReceived, 'from client (size:', data.data.length, ')');
-        
+
         // Process every 10 chunks to batch transcription requests
         // But skip if already processing to prevent overlapping responses
         if (audioChunksReceived % 10 === 0 && deepgramApiKey && !isProcessing) {
@@ -2707,9 +2758,9 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
             // Decode base64 audio chunks and combine them
             const audioBuffers = audioBuffer.map(chunk => Buffer.from(chunk, 'base64'));
             const combinedAudioBuffer = Buffer.concat(audioBuffers);
-            
+
             console.log('Sending', combinedAudioBuffer.length, 'bytes of audio to Deepgram');
-            
+
             const deepgramResponse = await nodeFetch('https://api.deepgram.com/v1/listen?model=nova-2&language=en&encoding=linear16&sample_rate=16000', {
               method: 'POST',
               headers: {
@@ -2718,12 +2769,12 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
               },
               body: combinedAudioBuffer
             });
-            
+
             if (deepgramResponse.ok) {
               const deepgramResult = await deepgramResponse.json();
               const transcript = deepgramResult.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
               const confidence = deepgramResult.results?.channels?.[0]?.alternatives?.[0]?.confidence || 0;
-              
+
               // ✅ Track Deepgram usage
               if (userId && callId) {
                 const audioDurationSeconds = combinedAudioBuffer.length / (16000 * 2);
@@ -2739,10 +2790,10 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
                   console.error('Error tracking Deepgram usage:', error);
                 }
               }
-              
+
               if (transcript) {
                 console.log('Deepgram transcript:', transcript);
-                
+
                 // Step 2: Send transcript to Gemini for processing
                 if (geminiApiKey) {
                   try {
@@ -2751,7 +2802,7 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
                     const systemPrompt = agentIdentity;
                     const userMessage = transcript;
                     const fullPrompt = systemPrompt + '\n\nUser: ' + userMessage;
-                    
+
                     const geminiResponse = await nodeFetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + geminiApiKey, {
                       method: 'POST',
                       headers: {
@@ -2765,12 +2816,12 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
                         }]
                       })
                     });
-                    
+
                     if (geminiResponse.ok) {
                       const geminiResult = await geminiResponse.json();
                       const agentResponse = geminiResult.candidates?.[0]?.content?.parts?.[0]?.text || 'I could not generate a response.';
                       console.log('Gemini response:', agentResponse);
-                      
+
                       // ✅ Track Gemini usage
                       if (userId && callId) {
                         const estimatedTokens = (fullPrompt.length + agentResponse.length) / 4;
@@ -2786,7 +2837,7 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
                           console.error('Error tracking Gemini usage:', error);
                         }
                       }
-                      
+
                       // Step 3: Send Gemini response to ElevenLabs for text-to-speech
                       if (elevenLabsApiKey) {
                         try {
@@ -2806,11 +2857,11 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
                               }
                             })
                           });
-                          
+
                           if (ttsResponse.ok) {
                             const audioBuffer = await ttsResponse.arrayBuffer();
                             const audioBase64 = Buffer.from(audioBuffer).toString('base64');
-                            
+
                             // ✅ Track ElevenLabs usage
                             if (userId && callId) {
                               const characterCount = agentResponse.length;
@@ -2826,26 +2877,26 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
                                 console.error('Error tracking ElevenLabs usage:', error);
                               }
                             }
-                            
+
                             // Send audio back to client
                             ws.send(JSON.stringify({
                               event: 'audio',
                               audio: audioBase64
                             }));
-                            
+
                             // Also send the transcript for display
                             ws.send(JSON.stringify({
                               event: 'transcript',
                               text: transcript,
                               confidence: confidence
                             }));
-                            
+
                             // Send agent response for display
                             ws.send(JSON.stringify({
                               event: 'agent-response',
                               text: agentResponse
                             }));
-                            
+
                           } else {
                             const errorText = await ttsResponse.text();
                             console.error('ElevenLabs TTS error:', ttsResponse.status, errorText);
@@ -2917,7 +2968,7 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
                   }));
                   isProcessing = false;
                 }
-                
+
                 // Clear buffer after successful transcription
                 audioBuffer.length = 0;
               } else {
@@ -2951,7 +3002,7 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
       console.error('Error processing voice stream message:', error);
     }
   });
-  
+
   // Send a greeting message after connection
   setTimeout(() => {
     try {
@@ -2963,12 +3014,12 @@ app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
       console.error('Error sending greeting:', error);
     }
   }, 500);
-  
+
   ws.on('close', () => {
     console.log('Voice stream connection closed. Total audio chunks received:', audioChunksReceived);
     audioBuffer.length = 0;
   });
-  
+
   ws.on('error', (error) => {
     console.error('Voice stream WebSocket error:', error);
   });
@@ -3023,31 +3074,31 @@ app.post('/api/campaigns/:id/set-caller-phone', async (req, res) => {
   try {
     const { id } = req.params;
     const { userId, callerPhone, agentId } = req.body;
-    
+
     if (!userId || !callerPhone) {
       return res.status(400).json({ success: false, message: 'User ID and caller phone are required' });
     }
-    
+
     // Validate that caller phone is a verified Twilio number
     const verifiedNumbers = await twilioService.getVerifiedNumbers(userId);
     const twilioNumber = verifiedNumbers.find(num => num.id === callerPhone || num.phoneNumber === callerPhone);
-    
+
     if (!twilioNumber) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Caller phone must be a verified Twilio number' 
+      return res.status(400).json({
+        success: false,
+        message: 'Caller phone must be a verified Twilio number'
       });
     }
-    
+
     // Update campaign with caller phone and agent
     await mysqlPool.execute(
       'UPDATE campaigns SET caller_phone = ?, agent_id = ? WHERE id = ? AND user_id = ?',
       [twilioNumber.phoneNumber, agentId || null, id, userId]
     );
-    
+
     const updatedCampaign = await campaignService.getCampaign(id, userId);
     res.json({ success: true, data: updatedCampaign });
-    
+
   } catch (error) {
     console.error('Error setting caller phone:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -3059,21 +3110,21 @@ app.post('/api/campaigns/:id/import', async (req, res) => {
   try {
     const { id } = req.params;
     const { userId, csvData } = req.body;
-    
+
     if (!userId || !csvData || !Array.isArray(csvData)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'User ID and CSV data are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and CSV data are required'
       });
     }
-    
+
     const count = await campaignService.importRecords(id, userId, csvData);
-    
-    res.json({ 
-      success: true, 
-      message: `Successfully imported ${count} records` 
+
+    res.json({
+      success: true,
+      message: `Successfully imported ${count} records`
     });
-    
+
   } catch (error) {
     console.error('Error importing CSV:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -3085,18 +3136,18 @@ app.post('/api/campaigns/:id/records', async (req, res) => {
   try {
     const { id } = req.params;
     const { userId, phone } = req.body;
-    
+
     if (!userId || !phone) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'User ID and phone number are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and phone number are required'
       });
     }
-    
+
     const record = await campaignService.addRecord(id, userId, phone);
-    
+
     res.json({ success: true, data: record });
-    
+
   } catch (error) {
     console.error('Error adding record:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -3108,15 +3159,15 @@ app.delete('/api/campaigns/:campaignId/records/:recordId', async (req, res) => {
   try {
     const { campaignId, recordId } = req.params;
     const { userId } = req.body;
-    
+
     if (!userId) {
       return res.status(400).json({ success: false, message: 'User ID is required' });
     }
-    
+
     await campaignService.deleteRecord(recordId, campaignId, userId);
-    
+
     res.json({ success: true, message: 'Record deleted successfully' });
-    
+
   } catch (error) {
     console.error('Error deleting record:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -3128,22 +3179,22 @@ app.post('/api/campaigns/:id/set-google-sheet', async (req, res) => {
   try {
     const { id } = req.params;
     const { userId, googleSheetUrl } = req.body;
-    
+
     if (!userId || !googleSheetUrl) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'User ID and Google Sheet URL are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and Google Sheet URL are required'
       });
     }
-    
+
     await mysqlPool.execute(
       'UPDATE campaigns SET google_sheet_url = ? WHERE id = ? AND user_id = ?',
       [googleSheetUrl, id, userId]
     );
-    
+
     const updatedCampaign = await campaignService.getCampaign(id, userId);
     res.json({ success: true, data: updatedCampaign });
-    
+
   } catch (error) {
     console.error('Error setting Google Sheet URL:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -3155,50 +3206,50 @@ app.post('/api/campaigns/:id/start', async (req, res) => {
   try {
     const { id } = req.params;
     const { userId } = req.body;
-    
+
     if (!userId) {
       return res.status(400).json({ success: false, message: 'User ID is required' });
     }
-    
+
     // Get campaign details
     const campaign = await campaignService.getCampaign(id, userId);
-    
+
     if (!campaign) {
       return res.status(404).json({ success: false, message: 'Campaign not found' });
     }
-    
+
     if (!campaign.callerPhone) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Please set a caller phone number before starting the campaign' 
+      return res.status(400).json({
+        success: false,
+        message: 'Please set a caller phone number before starting the campaign'
       });
     }
-    
+
     if (!campaign.agentId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Please select an agent for this campaign' 
+      return res.status(400).json({
+        success: false,
+        message: 'Please select an agent for this campaign'
       });
     }
-    
+
     // Update campaign status to running
     await campaignService.startCampaign(id, userId);
-    
+
     // Get all pending records
     const [records] = await mysqlPool.execute(
       'SELECT id, phone FROM campaign_records WHERE campaign_id = ? AND call_status = ?',
       [id, 'pending']
     );
-    
+
     // Start making calls asynchronously
     processCampaignCalls(id, userId, campaign, records);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       data: await campaignService.getCampaign(id, userId),
       message: `Campaign started. Calling ${records.length} numbers...`
     });
-    
+
   } catch (error) {
     console.error('Error starting campaign:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -3210,15 +3261,15 @@ app.post('/api/campaigns/:id/stop', async (req, res) => {
   try {
     const { id } = req.params;
     const { userId } = req.body;
-    
+
     if (!userId) {
       return res.status(400).json({ success: false, message: 'User ID is required' });
     }
     const updatedCampaign = await campaignService.stopCampaign(id, userId);
-  
+
     res.json({ success: true, data: updatedCampaign });
-  } 
-    catch (error) {
+  }
+  catch (error) {
     console.error('Error stopping campaign:', error);
     res.status(500).json({ success: false, message: error.message });
   }
@@ -3226,11 +3277,11 @@ app.post('/api/campaigns/:id/stop', async (req, res) => {
 // Process campaign calls (runs in background)
 async function processCampaignCalls(campaignId, userId, campaign, records) {
   console.log(`Processing campaign ${campaignId} with ${records.length} records`);
-  
+
   // Get verified Twilio numbers
   const verifiedNumbers = await twilioService.getVerifiedNumbers(userId);
   const twilioNumber = verifiedNumbers.find(num => num.phoneNumber === campaign.callerPhone);
-  
+
   if (!twilioNumber) {
     console.error('Twilio number not found:', campaign.callerPhone);
     return;
@@ -3250,7 +3301,7 @@ async function processCampaignCalls(campaignId, userId, campaign, records) {
       const callId = uuidv4();
       const appUrl = process.env.APP_URL;
       const cleanAppUrl = appUrl.replace(/\/$/, '');
-      
+
       const call = await twilioService.createCall({
         userId: userId,
         twilioNumberId: twilioNumber.id,
@@ -3259,35 +3310,35 @@ async function processCampaignCalls(campaignId, userId, campaign, records) {
         callId: callId,
         appUrl: cleanAppUrl
       });
-// ✅ Log all incoming HTTP requests to spot patterns
-app.use((req, res, next) => {
-  const isWebSocket = req.headers.upgrade === 'websocket';
-  if (isWebSocket || req.url.includes('/api/call') || req.url.includes('/api/twilio')) {
-    console.log(`📥 ${req.method} ${req.url}`, {
-      headers: {
-        upgrade: req.headers.upgrade,
-        connection: req.headers.connection,
-        'user-agent': req.headers['user-agent']?.substring(0, 50)
-      }
-    });
-  }
-  next();
-});
+      // ✅ Log all incoming HTTP requests to spot patterns
+      app.use((req, res, next) => {
+        const isWebSocket = req.headers.upgrade === 'websocket';
+        if (isWebSocket || req.url.includes('/api/call') || req.url.includes('/api/twilio')) {
+          console.log(`📥 ${req.method} ${req.url}`, {
+            headers: {
+              upgrade: req.headers.upgrade,
+              connection: req.headers.connection,
+              'user-agent': req.headers['user-agent']?.substring(0, 50)
+            }
+          });
+        }
+        next();
+      });
       // Update record with call SID
       await campaignService.updateRecordCallSid(record.id, call.sid);
-      
+
       console.log(`Call initiated for ${record.phone}: ${call.sid}`);
-      
+
       // Wait 30 seconds before next call (to avoid rate limits)
       await new Promise(resolve => setTimeout(resolve, 30000));
-      
+
     } catch (error) {
       console.error(`Error calling ${record.phone}:`, error);
       await campaignService.updateRecordStatus(record.id, 'failed');
       await campaignService.incrementRecordRetry(record.id);
     }
   }
-  
+
   console.log(`Campaign ${campaignId} processing complete`);
 }
 
@@ -3306,7 +3357,7 @@ app.get("/db-conn-status", async (req, res) => {
 // Log important HTTP requests
 app.use((req, res, next) => {
   const isWebSocket = req.headers.upgrade === 'websocket';
-  
+
   if (isWebSocket || req.url.includes('/api/call') || req.url.includes('/api/twilio')) {
     console.log(`📥 ${req.method} ${req.url}`, {
       headers: {
